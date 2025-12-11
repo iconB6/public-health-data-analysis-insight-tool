@@ -117,6 +117,7 @@ class DataCleaner(IDataCleaner):
             structured.append(
                 {
                     "record_data": record_data,
+                    "data_source": record_data.get("data_source") or record_data.get("source") or record_data.get("provider"),
                     "dimensions": dimensions,
                     "metrics": metrics,
                 }
