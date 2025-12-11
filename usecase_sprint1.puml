@@ -1,0 +1,21 @@
+@startuml
+
+actor Researcher
+
+rectangle "Data Insights Tool" {
+
+    usecase "Load Dataset (CSV)" as UC1
+    usecase "Clean Data" as UC2
+    usecase "Filter Data" as UC3
+    usecase "Generate Summary" as UC4
+    usecase "View Results (CLI)" as UC5
+
+}
+
+Researcher --> UC1
+Researcher --> UC3
+Researcher --> UC4
+Researcher --> UC5
+UC1 --> UC2
+
+@enduml

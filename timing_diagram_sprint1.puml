@@ -1,0 +1,19 @@
+@startuml
+actor Researcher
+
+Researcher -> CLI: select "Load and Analyze"
+CLI -> CSVLoader: load(file)
+CSVLoader --> CLI: raw_data
+
+CLI -> DataCleaner: clean(raw_data)
+DataCleaner --> CLI: cleaned_data
+
+CLI -> DataFilter: filter(cleaned_data, criteria)
+DataFilter --> CLI: filtered_data
+
+CLI -> Summarizer: summarize(filtered_data)
+Summarizer --> CLI: summary
+
+CLI -> Researcher: display results
+
+@enduml
