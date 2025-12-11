@@ -1,4 +1,5 @@
-country,year,group,date,indicator1,indicator2
-CountryA,2020,adult,2020-01-01,10,100
-CountryB,2021,child,2021-06-15,20,200
-CountryC,2022,adult,2022-03-30,30,300
+country,date,group,value_1,quarter,year
+BTN,2024-04-01,ad_chronic,0.0,1,2024
+CHL,2024-04-01,ad_chronic,93540.0,1,2024
+CZE,2024-07-01,ad_chronic,2354.0,2,2024
+ESP,2024-07-01,ad_chronic,43144.0,2,2024
