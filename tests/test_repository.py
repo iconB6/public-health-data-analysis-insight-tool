@@ -1,16 +1,21 @@
-from src.service.repository import SQLiteRepository
+from src.service.data_storage import DataStorageService
+from src.infrastructure.sqlite_repository import SQLiteRepository
 
 
-def test_repository_save_and_load():
-    repo = SQLiteRepository()
+def test_save_and_get_record():
+    repo = SQLiteRepository(":memory:")
+    service = DataStorageService(repo)
 
-    record_id = repo.save_record({"data_source": "csv"})
+    data = {
+        "data_source": "TestAPI",
+        "dimensions": {"country": "UK", "year": "2023"},
+        "metrics": {"cases": 10, "deaths": 1},
+    }
 
-    repo.save_dimensions(record_id, {"country": "UK", "city": "London"})
-    repo.save_metrics(record_id, {"value": 10.5, "count": 3})
+    record_id = service.save_full_record(data)
+    result = service.get_record(record_id)
 
-    record = repo.get_record(record_id)
+    assert result["data_source"] == "TestAPI"
+    assert result["dimensions"]["country"] == "UK"
+    assert result["metrics"]["cases"] == 10
 
-    assert record["data_source"] == "csv"
-    assert record["dimensions"]["country"] == "UK"
-    assert record["metrics"]["value"] == 10.5
