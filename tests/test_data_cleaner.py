@@ -1,57 +1,46 @@
-import datetime
 from src.service.data_cleaner import DataCleaner
+import datetime
 
 
-def test_cleaner_handles_missing_data():
+def test_clean_basic_null_and_numbers():
     cleaner = DataCleaner()
 
     rows = [
-        {"name": "Alice", "age": "20"},
-        {"name": "", "age": "30"},           # empty name → None
-        {"name": "   Bob   ", "age": "40"},   # trim whitespace
-        {"name": None, "age": None},         # fully empty row → removed
+        {"a": " 123 ", "b": "NA", "c": "1,234"},
+        {"a": "3.14", "b": "None", "c": "  2024-01-02  "}
     ]
 
-    result = cleaner.clean(rows)
-    assert len(result) == 3
-    assert result[1]["name"] is None
+    cleaned = cleaner.clean(rows)
+
+    assert cleaned[0]["a"] == 123
+    assert cleaned[0]["b"] is None
+    assert cleaned[0]["c"] == 1234.0
+
+    assert cleaned[1]["a"] == 3.14
+    assert cleaned[1]["b"] is None
+    assert cleaned[1]["c"] == datetime.date(2024, 1, 2)
 
 
-def test_cleaner_converts_numbers():
+def test_clean_skips_empty_rows():
+    cleaner = DataCleaner()
+    rows = [
+        {"a": None, "b": None},
+        {"a": "", "b": ""}
+    ]
+    cleaned = cleaner.clean(rows)
+    assert cleaned == []
+
+
+def test_structured_output():
     cleaner = DataCleaner()
 
     rows = [
-        {"x": "10", "y": "3.14", "z": "hello"}
+        {"data_source": "test", "country": "UK", "value": "12"}
     ]
 
-    result = cleaner.clean(rows)[0]
+    cleaned = cleaner.clean(rows)
+    structured = cleaner.to_structured_records(cleaned)[0]
 
-    assert result["x"] == 10
-    assert result["y"] == 3.14
-    assert result["z"] == "hello"
-
-
-def test_cleaner_converts_dates():
-    cleaner = DataCleaner()
-
-    rows = [
-        {"date1": "2024-01-01", "date2": "01/02/2024"}
-    ]
-
-    result = cleaner.clean(rows)[0]
-
-    assert isinstance(result["date1"], datetime.date)
-    assert isinstance(result["date2"], datetime.date)
-
-
-def test_cleaner_removes_fully_empty_rows():
-    cleaner = DataCleaner()
-
-    rows = [
-        {"a": "1"},
-        {"a": ""},        # → cleaned to None
-        {"a": None},      # fully empty row → removed
-    ]
-
-    result = cleaner.clean(rows)
-    assert len(result) == 2
+    assert structured["record_data"] == {"data_source": "test"}
+    assert structured["dimensions"] == {"country": "UK"}
+    assert structured["metrics"] == {"value": 12.0}
