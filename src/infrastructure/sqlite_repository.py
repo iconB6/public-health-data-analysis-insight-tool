@@ -1,129 +1,98 @@
 import sqlite3
-from typing import Dict, Any
+from typing import Dict, Any, List
+import re
 from src.interface.data_repository_interface import IDataRepository
+from datetime import datetime
 
 
 class SQLiteRepository(IDataRepository):
 
     def __init__(self, db_path: str = ":memory:"):
         self.conn = sqlite3.connect(db_path)
-        self._create_tables()
+        self.conn.row_factory = sqlite3.Row
 
-    def _create_tables(self):
-        cur = self.conn.cursor()
+    # ---- Type inference ----
+    def infer_type(self, value: Any) -> str:
+        """
+        Infer SQLite column type from Python value.
+        """
+        if value is None:
+            return "TEXT"  # default fallback
 
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS records (
-                record_id INTEGER PRIMARY KEY AUTOINCREMENT,
-                data_source TEXT
-            )
-        """)
+        # Try INT
+        try:
+            int(value)
+            return "INTEGER"
+        except:
+            pass
 
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS record_dimensions (
-                record_id INTEGER,
-                key TEXT,
-                value TEXT
-            )
-        """)
+        # Try FLOAT
+        try:
+            float(value)
+            return "REAL"
+        except:
+            pass
 
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS record_metrics (
-                record_id INTEGER,
-                metric_name TEXT,
-                metric_value REAL
-            )
-        """)
+        # Try DATE (YYYY-MM-DD)
+        if isinstance(value, str) and re.match(r"^\d{4}-\d{2}-\d{2}$", value):
+            return "TEXT"   # SQLite has no pure DATE type, store as TEXT
 
+        # Default
+        return "TEXT"
+
+    def create_tables(self, rows: List[Dict[str, Any]]):
+        if not rows:
+            raise ValueError("Cannot infer structure from empty rows.")
+
+        sample = rows[0]
+
+        columns_sql = ["record_id INTEGER PRIMARY KEY AUTOINCREMENT"]
+
+        for key, value in sample.items():
+            col_type = self.infer_type(value)
+            safe_key = key.replace(" ", "_").replace("-", "_")
+            # quote identifiers to avoid conflicts with SQL keywords (e.g. group)
+            columns_sql.append(f'"{safe_key}" {col_type}')
+
+        create_sql = f"""
+        CREATE TABLE IF NOT EXISTS records (
+            {", ".join(columns_sql)}
+        );
+        """
+
+        self.conn.execute(create_sql)
         self.conn.commit()
 
-    def save_record(self, record_data: Dict[str, Any]) -> int:
-        cur = self.conn.cursor()
+    def save_records(self, rows: List[Dict[str, Any]]) -> int:
+        if not rows:
+            return
 
-        cur.execute(
-            "INSERT INTO records (data_source) VALUES (?)",
-            (record_data["data_source"],),
-        )
+        keys = [k.replace(" ", "_").replace("-", "_") for k in rows[0].keys()]
+        placeholders = ",".join(["?"] * len(keys))
+
+        # quote column identifiers
+        quoted_cols = ",".join([f'"{k}"' for k in keys])
+
+        sql = f"INSERT INTO records ({quoted_cols}) VALUES ({placeholders})"
+
+        values = [
+            [row[k] for k in rows[0].keys()]
+            for row in rows
+        ]
+
+        self.conn.executemany(sql, values)
         self.conn.commit()
 
-        return cur.lastrowid
+        # return number of rows inserted
+        return len(rows)
 
-    def save_dimensions(self, record_id: int, dimensions: Dict[str, str]) -> None:
-        cur = self.conn.cursor()
-        for k, v in dimensions.items():
-            cur.execute(
-                "INSERT INTO record_dimensions (record_id, key, value) VALUES (?, ?, ?)",
-                (record_id, k, v),
-            )
-        self.conn.commit()
-
-    def save_metrics(self, record_id: int, metrics: Dict[str, float]) -> None:
-        cur = self.conn.cursor()
-        for k, v in metrics.items():
-            cur.execute(
-                "INSERT INTO record_metrics (record_id, metric_name, metric_value) VALUES (?, ?, ?)",
-                (record_id, k, v),
-            )
-        self.conn.commit()
-
-    def get_record(self, record_id: int) -> Dict[str, Any]:
-        cur = self.conn.cursor()
-
-        cur.execute("SELECT * FROM records WHERE record_id = ?", (record_id,))
-        record_row = cur.fetchone()
-
-        if record_row is None:
-            raise ValueError(f"Record not found: {record_id}")
-
-        cur.execute(
-            "SELECT key, value FROM record_dimensions WHERE record_id = ?",
-            (record_id,)
-        )
-        dimensions = {row[0]: row[1] for row in cur.fetchall()}
-
-        cur.execute(
-            "SELECT metric_name, metric_value FROM record_metrics WHERE record_id = ?",
-            (record_id,)
-        )
-        metrics = {row[0]: row[1] for row in cur.fetchall()}
-
-        return {
-            "record_id": record_id,
-            "data_source": record_row[1],
-            "dimensions": dimensions,
-            "metrics": metrics,
-        }
     def get_all_records(self):
-
-        cur = self.conn.cursor()
-
-        # fetch all record IDs
-        cur.execute("SELECT record_id, data_source FROM records")
-        record_rows = cur.fetchall()
-
-        results = []
-
-        for record_id, data_source in record_rows:
-
-            # dimensions
-            cur.execute(
-                "SELECT key, value FROM record_dimensions WHERE record_id = ?",
-                (record_id,)
-            )
-            dimensions = {row[0]: row[1] for row in cur.fetchall()}
-
-            # metrics
-            cur.execute(
-                "SELECT metric_name, metric_value FROM record_metrics WHERE record_id = ?",
-                (record_id,)
-            )
-            metrics = {row[0]: row[1] for row in cur.fetchall()}
-
-            results.append({
-                "record_id": record_id,
-                "data_source": data_source,
-                "dimensions": dimensions,
-                "metrics": metrics
-            })
-
-        return results
+        cur = self.conn.execute("SELECT * FROM records")
+        return [dict(row) for row in cur.fetchall()]
+    
+    def get_columns(self) -> List[str]:
+        """
+        Return all columns of records table.
+        """
+        cur = self.conn.execute("PRAGMA table_info(records)")
+        return [row["name"] for row in cur.fetchall()]

@@ -1,5 +1,6 @@
 from src.service.data_cleaner import DataCleaner
 import datetime
+import pandas as pd
 
 
 def test_clean_basic_null_and_numbers():
@@ -31,16 +32,23 @@ def test_clean_skips_empty_rows():
     assert cleaned == []
 
 
-def test_structured_output():
+def test_dataframe_output():
     cleaner = DataCleaner()
 
     rows = [
-        {"data_source": "test", "country": "UK", "value": "12"}
+        {"country": "UK", "value_1": 100, "age": "20-29"},
+        {"country": "US", "value_1": 200, "age": "30-39"},
     ]
 
-    cleaned = cleaner.clean(rows)
-    structured = cleaner.to_structured_records(cleaned)[0]
+    df = cleaner.to_dataframe_records(rows)
 
-    assert structured["record_data"] == {"data_source": "test"}
-    assert structured["dimensions"] == {"country": "UK"}
-    assert structured["metrics"] == {"value": 12.0}
+    # --- basic shape ---
+    assert isinstance(df, pd.DataFrame)
+    assert df.shape == (2, 3)
+
+    # --- columns preserved ---
+    assert list(df.columns) == ["country", "value_1", "age"]
+
+    # --- values correct ---
+    assert df.loc[0, "country"] == "UK"
+    assert df.loc[1, "value_1"] == 200

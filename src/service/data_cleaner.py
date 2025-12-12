@@ -1,5 +1,6 @@
 import datetime
 from typing import Any, Dict, List
+import pandas as pd
 
 from src.interface.data_cleaner_interface import IDataCleaner
 
@@ -85,42 +86,19 @@ class DataCleaner(IDataCleaner):
 
     # ---- Structured Output ----
 
-    def to_structured_records(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Convert flat cleaned rows into:
-        {
-            "record_data": {...},
-            "dimensions": {...},
-            "metrics": {...}
-        }
-        """
+    def to_dataframe_records(self, rows: List[Dict[str, Any]]) -> pd.DataFrame:
 
-        structured = []
+        if not isinstance(rows, list):
+            raise ValueError("Input must be a list of dictionaries")
 
-        for row in rows:
-            record_data = {}
-            dimensions = {}
-            metrics = {}
+        if len(rows) == 0:
+            raise ValueError("Cannot convert empty list to DataFrame")
 
-            for key, value in row.items():
-                # record-level metadata (customizable)
-                if key in ["data_source", "source", "provider"]:
-                    record_data[key] = value
-                    continue
+        # Validate elements are dicts
+        if not all(isinstance(r, dict) for r in rows):
+            raise ValueError("All elements must be dictionaries")
 
-                # numeric = metric
-                if isinstance(value, (int, float)):
-                    metrics[key] = value
-                else:
-                    dimensions[key] = value
+        # Direct DataFrame conversion
+        df = pd.DataFrame(rows)
 
-            structured.append(
-                {
-                    "record_data": record_data,
-                    "data_source": record_data.get("data_source") or record_data.get("source") or record_data.get("provider"),
-                    "dimensions": dimensions,
-                    "metrics": metrics,
-                }
-            )
-
-        return structured
+        return df

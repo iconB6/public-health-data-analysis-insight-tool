@@ -17,49 +17,27 @@ def test_integration_filter_pipeline():
     # ---------- 2. Clean ----------
     cleaner = DataCleaner()
     cleaned = cleaner.clean(rows)
-    structured = cleaner.to_structured_records(cleaned)
-
-    assert len(structured) == len(cleaned)
 
     # ---------- 3. Store in SQLite ----------
     repo = SQLiteRepository(":memory:")
     storage = DataStorageService(repo)
-
-    for record in structured:
-        storage.save_full_record({
-            "data_source": record["record_data"].get("data_source", "csv"),
-            "dimensions": record["dimensions"],
-            "metrics": record["metrics"]
-        })
+    stored_count = storage.save_full_record(cleaned)
 
     # Must have stored all rows
     all_records = storage.get_all_records()
-    assert len(all_records) == len(structured)
+    assert len(all_records) == stored_count
 
     # ---------- 4. Filter ----------
     filter_service = DataFilter()
 
     # Example filter: filter by dimension field
-    filtered_by_country = filter_service.filter_records(
-        all_records,
-        dimension_filters={"country": "UK"}
-    )
-    assert all(r["dimensions"].get("country") == "UK" for r in filtered_by_country)
+    filtered_by_country = filter_service.filter_by_fields(all_records, country="UK")
+    assert all(r["country"] == "UK" for r in filtered_by_country)
 
     # Example: date range filter (assuming sample.csv contains a "date" column)
-    filtered_by_date = filter_service.filter_records(
-        all_records,
-        date_range={"start": "2020-01-01", "end": "2020-12-31"}
+    filtered_by_date = filter_service.filter_by_date_range(
+        all_records, start_date="2024-04-01",
+        end_date="2024-07-01"
     )
-    for r in filtered_by_date:
-        assert "date" in r["dimensions"]
+    assert len(filtered_by_date) == 4
 
-    # Example: metric filter (assuming metrics contain "cases")
-    filtered_by_metrics = filter_service.filter_records(
-        all_records,
-        metric_filters={"cases": {">=": 100}}
-    )
-    for r in filtered_by_metrics:
-        assert r["metrics"]["cases"] >= 100
-
-    # If sample.csv doesn’t contain such fields, remove or adjust tests accordingly.

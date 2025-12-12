@@ -27,25 +27,13 @@ def test_full_integration_pipeline():
     assert len(cleaned) == len(raw_rows)
     assert all(isinstance(r, dict) for r in cleaned)
 
-    # --- 3. Convert to structured records ---
-    structured = cleaner.to_structured_records(cleaned)
-
-    assert isinstance(structured, list)
-    assert len(structured) == len(cleaned)
-    assert "dimensions" in structured[0]
-    assert "metrics" in structured[0]
 
     # --- 4. Save using mocked repository ---
     mock_repo = MagicMock()
-    mock_repo.save_record.return_value = 1  # simulate auto-increment id
+    mock_repo.save_records.return_value = 1  # simulate auto-increment id
 
     storage = DataStorageService(mock_repo)
 
-    for record in structured:
-        record_id = storage.save_full_record(record)
-        assert record_id == 1
+    record_number = storage.save_full_record(cleaned)
+    assert record_number == 1
 
-    # repo interactions check
-    assert mock_repo.save_record.call_count == len(structured)
-    assert mock_repo.save_dimensions.call_count == len(structured)
-    assert mock_repo.save_metrics.call_count == len(structured)

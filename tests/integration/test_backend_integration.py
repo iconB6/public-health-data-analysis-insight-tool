@@ -2,88 +2,84 @@ import os
 from src.service.data_loader import DataLoadingService
 from src.service.data_cleaner import DataCleaner
 from src.service.data_storage import DataStorageService
-from src.infrastructure.sqlite_repository import SQLiteRepository
 from src.service.data_filter import DataFilter
-from src.service.summarizer_service import Summarizer
+from src.service.data_summarizer import DataSummarizer   # ⭐ 新增
+from src.infrastructure.sqlite_repository import SQLiteRepository
 
 
-def test_full_pipeline_integration():
-    """
-    Integration test:
-    Load CSV -> Clean -> Structure -> Store -> Load All -> Filter -> Summarize
-    """
-
-    # -------------------------------
-    # 1. Load CSV
-    # -------------------------------
+def test_integration_full_pipeline_with_summarizer():
+    # ---------- 1. Load CSV ----------
     loader_service = DataLoadingService()
-    csv_path = "tests/data/sample.csv"     # Already exists in your repo
+    csv_path = "tests/data/sample.csv"
     rows = loader_service.load_data("csv", csv_path)
 
     assert len(rows) > 0
 
-    # -------------------------------
-    # 2. Clean data
-    # -------------------------------
+    # ---------- 2. Clean ----------
     cleaner = DataCleaner()
-    cleaned_rows = cleaner.clean(rows)
+    cleaned = cleaner.clean(rows)
 
-    assert len(cleaned_rows) == len(rows)
-
-    # -------------------------------
-    # 3. Convert to structured format
-    # -------------------------------
-    structured = cleaner.to_structured_records(cleaned_rows)
-    assert isinstance(structured, list)
-    assert "record_data" in structured[0]
-    assert "dimensions" in structured[0]
-    assert "metrics" in structured[0]
-
-    # -------------------------------
-    # 4. Store into SQLite
-    # -------------------------------
-    repo = SQLiteRepository()   # in-memory DB
+    # ---------- 3. Store in SQLite ----------
+    repo = SQLiteRepository(":memory:")
     storage = DataStorageService(repo)
+    stored_count = storage.save_full_record(cleaned)
 
-    for item in structured:
-        storage.save_full_record(item)
+    all_records = storage.get_all_records()
+    assert len(all_records) == stored_count
 
-    # Confirm inserted
-    all_records = repo.get_all_records()
-    assert len(all_records) == len(structured)
+    # ---------- 4. Filter ----------
+    filter_service = DataFilter()
 
-    # -------------------------------
-    # 5. Filter
-    # -------------------------------
-    data_filter = DataFilter()
+    # Example filter: filter by dimension field
+    filtered_by_country = filter_service.filter_by_fields(all_records, country="UK")
+    assert all(r["country"] == "UK" for r in filtered_by_country)
 
-    # try filter: dimension filter (if sample.csv has country column)
-    filtered = data_filter.filter_records(
+    # Example: date range filter
+    filtered_by_date = filter_service.filter_by_date_range(
         all_records,
-        dimension_filters={"country": "CZE"}  # adjust based on your CSV
+        start_date="2024-04-01",
+        end_date="2024-07-01",
+    )
+    assert len(filtered_by_date) == 4
+
+    # ===============================================================
+    # 5. Summarizer Integration Tests
+    # ===============================================================
+
+    summarizer = DataSummarizer()
+
+    # ---------- 5.1 Summary Stats ----------
+    stats_df = summarizer.summary_stats(all_records)
+
+    # Ensure dataframe is created
+    assert not stats_df.empty
+    # Ensure required rows exist
+    for stat in ["count", "mean", "min", "max"]:
+        assert stat in stats_df.columns
+
+    # ---------- 5.2 Trend Over Time ----------
+    # Expect returned dataframe with date + metric
+    trend_df = summarizer.trend_over_time(
+        all_records,
+        date_field="date",
+        metric_field="value_1"  
     )
 
-    # filtered may be empty depending on sample.csv, so no strict assert here
-    assert isinstance(filtered, list)
+    assert set(trend_df.keys()) == {
+            "date", "value", "date_field", "metric_field", "dataframe"
+        }
+    assert len(trend_df) > 0
+    df = trend_df["dataframe"]
+    assert list(df.columns) == ["date", "value_1"]
 
-    # -------------------------------
-    # 6. Summaries
-    # -------------------------------
-    summarizer = Summarizer()
+    # ---------- 5.3 Group By ----------
+    group_df = summarizer.group_by(
+        all_records,
+        group_field="country",
+        metric_field="value_1",  
+    )
 
-    # summary stats
-    stats = summarizer.summary_stats(all_records, metric="value_1")  # adjust metric name
-    assert "count" in stats and "mean" in stats
+    assert not group_df.empty
+    for col in ["count", "mean", "min", "max"]:
+        assert col in group_df.columns
 
-    # trend over time (if "date" exists)
-    trend = summarizer.trend_over_time(all_records, date_key="date", metric="value_1")
-    assert isinstance(trend, list)
-
-    # group by (if "country" exists)
-    grouped = summarizer.group_by(all_records, group_key="country", metric="value_1")
-    assert isinstance(grouped, dict)
-
-    # -------------------------------
-    # Test successful
-    # -------------------------------
-    print("Integration test pipeline passed.")

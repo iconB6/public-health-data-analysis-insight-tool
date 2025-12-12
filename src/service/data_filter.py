@@ -1,125 +1,102 @@
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any
 from src.interface.data_filter_interface import IDataFilter
 from datetime import datetime
 
 
 class DataFilter(IDataFilter):
 
+    def __init__(self, repository=None):
+        self.repository = repository
+
+    def filter_by_fields(
+        self,
+        records: List[Dict[str, Any]],
+        **field_filters
+    ) -> List[Dict[str, Any]]:
+
+        if not records:
+            return []
+
+        if self.repository:
+            valid_fields = set(self.repository.get_columns())
+        else:
+            # infer valid fields from the first record
+            valid_fields = set(records[0].keys()) if records else set()
+        result = records
+
+        for field, value in field_filters.items():
+            if field not in valid_fields:
+                continue
+            if value is None:
+                continue
+
+            result = [
+                r for r in result
+                if r.get(field) == value
+            ]
+
+        return result
+
+    def filter_by_date_range(
+        self,
+        records: List[Dict[str, Any]],
+        date_field: str = "date",
+        start_date: str = None,
+        end_date: str = None
+    ) -> List[Dict[str, Any]]:
+
+        if not records:
+            return []
+
+        if not (start_date or end_date):
+            return records
+
+        if self.repository:
+            valid_fields = set(self.repository.get_columns())
+        else:
+            valid_fields = set(records[0].keys()) if records else set()
+
+        if date_field not in valid_fields:
+            return records
+
+        def to_date(s):
+            try:
+                return datetime.strptime(s, "%Y-%m-%d")
+            except:
+                return None
+
+        start = to_date(start_date) if start_date else None
+        end = to_date(end_date) if end_date else None
+
+        result = []
+        for r in records:
+            v = to_date(r.get(date_field))
+            if not v:
+                continue
+            if start and v < start:
+                continue
+            if end and v > end:
+                continue
+
+            result.append(r)
+
+        return result
+
+# combined filter
     def filter_records(
         self,
         records: List[Dict[str, Any]],
-        dimension_filters: Optional[Dict[str, str]] = None,
-        date_range: Optional[Dict[str, str]] = None,
-        metric_filters: Optional[Dict[str, Dict[str, float]]] = None,
+        date_field: str = None,
+        start_date: str = None,
+        end_date: str = None,
+        **field_filters
     ) -> List[Dict[str, Any]]:
 
-        result = records
+        result = self.filter_by_fields(records, **field_filters)
 
-        if dimension_filters:
-            result = self._apply_dimension_filters(result, dimension_filters)
-
-        if date_range:
-            result = self._apply_date_range_filter(result, date_range)
-
-        if metric_filters:
-            result = self._apply_metric_filters(result, metric_filters)
+        if date_field:
+            result = self.filter_by_date_range(result, date_field, start_date, end_date)
 
         return result
-    
-    # -------------------------------------------------------------
-    # dimension filters
-    # -------------------------------------------------------------
-    def _apply_dimension_filters(
-        self, 
-        records: List[Dict[str, Any]], 
-        filters: Dict[str, str]
-    ) -> List[Dict[str, Any]]:
-
-        def match(record):
-            dims = record.get("dimensions", {})
-            return all(dims.get(key) == value for key, value in filters.items())
-
-        return [r for r in records if match(r)]
-
-    # -------------------------------------------------------------
-    # date range filter：record["dimensions"]["date"] must be yyyy-mm-dd
-    # -------------------------------------------------------------
-    def _apply_date_range_filter(
-        self,
-        records: List[Dict[str, Any]],
-        date_range: Dict[str, str]
-    ) -> List[Dict[str, Any]]:
-
-        start = (
-            datetime.strptime(date_range["start"], "%Y-%m-%d")
-            if "start" in date_range
-            else None
-        )
-        end = (
-            datetime.strptime(date_range["end"], "%Y-%m-%d")
-            if "end" in date_range
-            else None
-        )
-
-        def match(record):
-            dims = record.get("dimensions", {})
-            date_str = dims.get("date")
-            if not date_str:
-                return False
-
-            try:
-                record_date = datetime.strptime(date_str, "%Y-%m-%d")
-            except:
-                return False
-
-            if start and record_date < start:
-                return False
-            if end and record_date > end:
-                return False
-
-            return True
-
-        return [r for r in records if match(r)]
-
-    # -------------------------------------------------------------
-    # metric_filters example:{
-    #    "cases": {">=": 1000},
-    #    "deaths": {"<": 50}
-    # }
-    # -------------------------------------------------------------
-    def _apply_metric_filters(
-        self,
-        records: List[Dict[str, Any]],
-        metric_filters: Dict[str, Dict[str, float]]
-    ) -> List[Dict[str, Any]]:
-
-        ops: Dict[str, Callable[[float, float], bool]] = {
-            ">=": lambda a, b: a >= b,
-            "<=": lambda a, b: a <= b,
-            ">": lambda a, b: a > b,
-            "<": lambda a, b: a < b,
-            "==": lambda a, b: a == b,
-            "!=": lambda a, b: a != b, 
-        }
-
-        def match(record):
-            metrics = record.get("metrics", {})
-
-            for metric_name, conditions in metric_filters.items():
-                if metric_name not in metrics:
-                    return False
-
-                value = metrics[metric_name]
-
-                for op_symbol, target in conditions.items():
-                    if op_symbol not in ops:
-                        raise ValueError(f"Unsupported operator: {op_symbol}")
-
-                    if not ops[op_symbol](value, target):
-                        return False
-
-            return True
-
-        return [r for r in records if match(r)]
     
 

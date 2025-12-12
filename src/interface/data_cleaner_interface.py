@@ -14,12 +14,3 @@ class IDataCleaner(ABC):
         """
         pass
 
-    @abstractmethod
-    def to_structured_records(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Convert cleaned flat rows into:
-        - record_data
-        - dimensions
-        - metrics
-        """
-        pass

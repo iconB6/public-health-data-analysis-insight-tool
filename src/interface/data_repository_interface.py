@@ -1,37 +1,39 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
+from typing import List, Dict, Any
 
 
 class IDataRepository(ABC):
     """
-    Interface for saving records into a persistent storage.
+    Abstract interface for a generic data repository.
+    Concrete implementations: SQLiteRepository, MemoryRepository, etc.
     """
 
     @abstractmethod
-    def save_record(self, record_data: Dict[str, Any]) -> int:
+    def create_tables(self, rows: List[Dict[str, Any]]) -> None:
         """
-        Save a single record.
-        Should return the generated record_id.
-        """
-        pass
-
-    @abstractmethod
-    def save_dimensions(self, record_id: int, dimensions: Dict[str, str]) -> None:
-        """
-        Save key-value dimensional data.
+        Create database tables dynamically based on keys in row dictionaries.
+        This must be called before saving records.
         """
         pass
 
     @abstractmethod
-    def save_metrics(self, record_id: int, metrics: Dict[str, float]) -> None:
+    def save_records(self, rows: List[Dict[str, Any]]) -> int:
         """
-        Save metric key-value pairs.
+        Insert multiple records into storage.
+        Should return the number of inserted rows.
         """
         pass
 
     @abstractmethod
-    def get_record(self, record_id: int) -> Dict[str, Any]:
+    def get_all_records(self) -> List[Dict[str, Any]]:
         """
-        Load a record and its related dimensions/metrics.
+        Retrieve all stored records as List[Dict[str, Any]].
+        """
+        pass
+
+    @abstractmethod
+    def get_columns(self) -> List[str]:
+        """
+        Return all columns of the records table.
         """
         pass

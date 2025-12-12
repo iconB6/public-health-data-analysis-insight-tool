@@ -3,161 +3,73 @@ from datetime import datetime
 from src.service.data_filter import DataFilter
 
 
+class FakeRepository:
+    def __init__(self, columns):
+        self.columns = columns
+
+    def get_columns(self):
+        return self.columns
+
 @pytest.fixture
 def sample_records():
     return [
-        {
-            "record_id": 1,
-            "data_source": "A",
-            "dimensions": {
-                "country": "USA",
-                "date": "2023-01-10",
-                "age_group": "20-29"
-            },
-            "metrics": {
-                "population": 500,
-                "growth": 1.2
-            }
-        },
-        {
-            "record_id": 2,
-            "data_source": "A",
-            "dimensions": {
-                "country": "Japan",
-                "date": "2023-02-15",
-                "age_group": "30-39"
-            },
-            "metrics": {
-                "population": 800,
-                "growth": 0.9
-            }
-        },
-        {
-            "record_id": 3,
-            "data_source": "B",
-            "dimensions": {
-                "country": "USA",
-                "date": "2023-03-05",
-                "age_group": "20-29"
-            },
-            "metrics": {
-                "population": 300,
-                "growth": 1.5
-            }
-        },
+        {"country": "China", "date": "2024-01-10", "value": "10"},
+        {"country": "China", "date": "2024-02-05", "value": "15"},
+        {"country": "Japan", "date": "2024-03-01", "value": "20"},
+        {"country": "USA", "date": "2023-12-31", "value": "12"},
     ]
 
+@pytest.fixture
+def data_filter():
+    repo = FakeRepository(columns=["country", "date", "value"])
+    return DataFilter(repository=repo)
 
-def test_filter_by_dimension(sample_records):
-    f = DataFilter()
 
-    result = f.filter_records(
-        sample_records,
-        dimension_filters={"country": "USA"}
-    )
-
+def test_filter_by_fields(data_filter, sample_records):
+    result = data_filter.filter_by_fields(sample_records, country="China")
     assert len(result) == 2
-    assert all(r["dimensions"]["country"] == "USA" for r in result)
+    assert all(r["country"] == "China" for r in result)
 
 
-def test_filter_by_multiple_dimensions(sample_records):
-    f = DataFilter()
+def test_filter_unknown_field_ignored(data_filter, sample_records):
+    result = data_filter.filter_by_fields(sample_records, unknown="X")
+    assert len(result) == 4  # unchanged
 
-    result = f.filter_records(
+
+def test_filter_by_date_range_start(data_filter, sample_records):
+    result = data_filter.filter_by_date_range(
         sample_records,
-        dimension_filters={
-            "country": "USA",
-            "age_group": "20-29"
-        }
+        date_field="date",
+        start_date="2024-01-01"
     )
+    assert len(result) == 3  # 3 after 2024-01-01
 
+
+def test_filter_by_date_range_full(data_filter, sample_records):
+    result = data_filter.filter_by_date_range(
+        sample_records,
+        date_field="date",
+        start_date="2024-01-01",
+        end_date="2024-02-28"
+    )
     assert len(result) == 2
-    for r in result:
-        assert r["dimensions"]["country"] == "USA"
-        assert r["dimensions"]["age_group"] == "20-29"
+    assert all(r["country"] == "China" for r in result)
 
 
-def test_filter_by_date_range(sample_records):
-    f = DataFilter()
-
-    result = f.filter_records(
+def test_filter_records_combined(data_filter, sample_records):
+    """
+    China + date >= 2024-02-01
+    """
+    result = data_filter.filter_records(
         sample_records,
-        date_range={
-            "start": "2023-02-01",
-            "end": "2023-03-01"
-        }
+        date_field="date",
+        start_date="2024-02-01",
+        country="China"
     )
-
     assert len(result) == 1
-    assert result[0]["record_id"] == 2
+    assert result[0]["date"] == "2024-02-05"
 
 
-def test_filter_combined_dimensions_and_date(sample_records):
-    f = DataFilter()
-
-    result = f.filter_records(
-        sample_records,
-        dimension_filters={"country": "USA"},
-        date_range={"start": "2023-02-01", "end": "2023-04-01"}
-    )
-
-    assert len(result) == 1
-    assert result[0]["record_id"] == 3
-
-
-def test_filter_by_metric_greater_than(sample_records):
-    f = DataFilter()
-
-    result = f.filter_records(
-        sample_records,
-        metric_filters={"population": {">": 400}}
-    )
-
-    assert len(result) == 2
-    assert {r["record_id"] for r in result} == {1, 2}
-
-
-def test_filter_by_metric_less_than(sample_records):
-    f = DataFilter()
-
-    result = f.filter_records(
-        sample_records,
-        metric_filters={"growth": {"<": 1.0}}
-    )
-
-    assert len(result) == 1
-    assert result[0]["record_id"] == 2
-
-
-def test_filter_by_metric_equals(sample_records):
-    f = DataFilter()
-
-    result = f.filter_records(
-        sample_records,
-        metric_filters={"population": {"==": 300}}
-    )
-
-    assert len(result) == 1
-    assert result[0]["record_id"] == 3
-
-
-def test_combined_dimension_date_metric(sample_records):
-    f = DataFilter()
-
-    result = f.filter_records(
-        sample_records,
-        dimension_filters={"country": "USA"},
-        date_range={"start": "2023-01-01", "end": "2023-02-01"},
-        metric_filters={"population": {">": 400}}
-    )
-
-    assert len(result) == 1
-    assert result[0]["record_id"] == 1
-
-
-def test_no_filters_returns_all(sample_records):
-    f = DataFilter()
-
-    result = f.filter_records(sample_records)
-
-    assert len(result) == 3
+def test_filter_no_filters_return_all(data_filter, sample_records):
+    result = data_filter.filter_records(sample_records)
+    assert len(result) == 4

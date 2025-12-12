@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any, List
 from src.interface.data_repository_interface import IDataRepository
 
 
@@ -6,33 +6,18 @@ class DataStorageService:
 
     def __init__(self, repository: IDataRepository):
         self.repository = repository
+        self.tables_created = False
 
-    def save_full_record(self, data: Dict[str, Any]) -> int:
-        """
-        {
-            "data_source": "API",
-            "dimensions": {"country": "UK", "age": "20-29"},
-            "metrics": {"cases": 100, "deaths": 2}
-        }
-        """
+    def save_full_record(self, rows: List[Dict[str, Any]]) -> int:
 
-        record_id = self.repository.save_record({
-            "data_source": data["data_source"]
-        })
+        if not rows:
+            raise ValueError("Cannot store empty data list.")
 
-        if "dimensions" in data and isinstance(data["dimensions"], dict):
-            self.repository.save_dimensions(record_id, data["dimensions"])
+        if not self.tables_created:
+            self.repository.create_tables(rows)
+            self.tables_created = True
 
-        if "metrics" in data and isinstance(data["metrics"], dict):
-            self.repository.save_metrics(record_id, data["metrics"])
-
-        return record_id
-
-    def get_record(self, record_id: int) -> Dict[str, Any]:
-        """
-        get record by id
-        """
-        return self.repository.get_record(record_id)
+        return self.repository.save_records(rows)
     
-    def get_all_records(self):
+    def get_all_records(self) -> List[Dict[str, Any]]:
         return self.repository.get_all_records()
