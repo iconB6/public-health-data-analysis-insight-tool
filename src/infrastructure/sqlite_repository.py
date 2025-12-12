@@ -93,3 +93,37 @@ class SQLiteRepository(IDataRepository):
             "dimensions": dimensions,
             "metrics": metrics,
         }
+    def get_all_records(self):
+
+        cur = self.conn.cursor()
+
+        # fetch all record IDs
+        cur.execute("SELECT record_id, data_source FROM records")
+        record_rows = cur.fetchall()
+
+        results = []
+
+        for record_id, data_source in record_rows:
+
+            # dimensions
+            cur.execute(
+                "SELECT key, value FROM record_dimensions WHERE record_id = ?",
+                (record_id,)
+            )
+            dimensions = {row[0]: row[1] for row in cur.fetchall()}
+
+            # metrics
+            cur.execute(
+                "SELECT metric_name, metric_value FROM record_metrics WHERE record_id = ?",
+                (record_id,)
+            )
+            metrics = {row[0]: row[1] for row in cur.fetchall()}
+
+            results.append({
+                "record_id": record_id,
+                "data_source": data_source,
+                "dimensions": dimensions,
+                "metrics": metrics
+            })
+
+        return results

@@ -33,3 +33,6 @@ class DataStorageService:
         get record by id
         """
         return self.repository.get_record(record_id)
+    
+    def get_all_records(self):
+        return self.repository.get_all_records()
