@@ -22,7 +22,10 @@ def test_integration_full_pipeline_with_summarizer():
     # ---------- 3. Store in SQLite ----------
     repo = SQLiteRepository(":memory:")
     storage = DataStorageService(repo)
-    stored_count = storage.save_full_record(cleaned)
+    # Ensure repository connection and perform save in a transaction
+    storage.connect()
+    with storage.transaction():
+        stored_count = storage.save_full_record(cleaned)
 
     all_records = storage.get_all_records()
     assert len(all_records) == stored_count
@@ -82,4 +85,7 @@ def test_integration_full_pipeline_with_summarizer():
     assert not group_df.empty
     for col in ["count", "mean", "min", "max"]:
         assert col in group_df.columns
+
+    # cleanup connection
+    storage.disconnect()
 

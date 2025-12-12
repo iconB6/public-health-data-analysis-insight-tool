@@ -1,12 +1,37 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from contextlib import contextmanager
+
 from src.interface.data_repository_interface import IDataRepository
 
 
 class DataStorageService:
 
-    def __init__(self, repository: IDataRepository):
-        self.repository = repository
+    def __init__(self, db_path: str):
+        self.repository = IDataRepository(db_path)
         self.tables_created = False
+
+    # --- Connection management ---
+    def connect(self):
+        """Establish or re-establish repository connection."""
+        return self.repository.connect()
+
+    def disconnect(self):
+        """Close repository connection."""
+        return self.repository.disconnect()
+
+    # --- Transaction wrapper ---
+    @contextmanager
+    def transaction(self):
+        self.repository.begin()
+        try:
+            yield
+            self.repository.commit()
+        except Exception:
+            self.repository.rollback()
+            raise
+
+    def get_columns(self) -> List[str]:
+        return self.repository.get_columns()
 
     def save_full_record(self, rows: List[Dict[str, Any]]) -> int:
 

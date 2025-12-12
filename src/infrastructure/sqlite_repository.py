@@ -8,9 +8,65 @@ from datetime import datetime
 class SQLiteRepository(IDataRepository):
 
     def __init__(self, db_path: str = ":memory:"):
+        self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row
 
+    def connect(self):
+         if self.conn is None:
+            self.conn = sqlite3.connect(self.db_path)
+            self.conn.row_factory = sqlite3.Row
+    
+    def disconnect(self):
+        if self.conn is not None:
+            try:
+                self.conn.close()
+            finally:
+                self.conn = None
+
+    def execute(self, query: str, params: tuple = ()):
+        cur = self.conn.execute(query, params) if params else self.conn.execute(query)
+        return cur
+
+    def executemany(self, query: str, params_list: List[tuple]):
+        cur = self.conn.executemany(query, params_list)
+        return cur
+
+    # -------------------------
+    # Transactions
+    # -------------------------
+    def begin(self):
+        if self.conn is not None:
+            self.conn.execute("BEGIN")
+
+    def commit(self):
+        if self.conn is not None:
+            self.conn.commit()
+
+    def rollback(self):
+        if self.conn is not None:
+            self.conn.rollback()
+
+    # -------------------------
+    # Context Manager
+    # -------------------------
+    def __enter__(self):
+        # Return repository itself so callers can use its methods
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        if exc_type:
+            try:
+                self.rollback()
+            except Exception:
+                pass
+        else:
+            try:
+                self.commit()
+            except Exception:
+                pass
+    
     # ---- Type inference ----
     def infer_type(self, value: Any) -> str:
         """
