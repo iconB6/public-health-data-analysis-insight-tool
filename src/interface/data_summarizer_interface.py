@@ -9,7 +9,7 @@ class IDataSummarizer(ABC):
     """
 
     @abstractmethod
-    def summary_stats(self, records: List[Dict[str, Any]]) -> pd.DataFrame:
+    def summary_stats(self, records: List[Dict[str, Any]]) -> dict:
         """
         Compute summary statistics for all numeric columns.
         Returns a pandas DataFrame.

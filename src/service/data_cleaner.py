@@ -35,13 +35,28 @@ class DataCleaner(IDataCleaner):
                 continue
 
             for key, value in row.items():
-                cleaned[key] = self._clean_value(value)
+                clean_key = self._clean_key(key)
+                cleaned[clean_key] = self._clean_value(value)
 
             cleaned_rows.append(cleaned)
 
         return cleaned_rows
 
     # ---- Helpers ----
+
+    def _clean_key(self, key: str) -> str:
+        """Normalize key strings."""
+        if not isinstance(key, str):
+            return key
+
+        return (
+            key
+            .lstrip("\ufeff")          # BOM
+            .replace("\u200b", "")     # zero-width space
+            .replace("\xa0", " ")      # non-breaking space
+            .strip()                   # leading/trailing spaces
+            .upper()                   # normalize case
+        )
 
     def _clean_value(self, value: Any) -> Any:
         """Convert specific formats."""

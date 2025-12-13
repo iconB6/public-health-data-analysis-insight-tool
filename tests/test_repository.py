@@ -3,8 +3,7 @@ from src.infrastructure.sqlite_repository import SQLiteRepository
 
 
 def test_save_and_get_record():
-    repo = SQLiteRepository(":memory:")
-    service = DataStorageService(repo)
+    service = DataStorageService(":memory:")
 
     data = [
         {"date": "2024-01-01", "country": "UK", "value_1": 123},
@@ -34,7 +33,6 @@ def test_save_and_get_record():
 
     # --- Test connect / disconnect behaviour ---
     # force close underlying connection and reconnect
-    repo.conn = None
     service.connect()
     assert getattr(repo, "conn") is not None
     service.disconnect()

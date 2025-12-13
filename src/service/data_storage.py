@@ -2,12 +2,13 @@ from typing import Dict, Any, List, Optional
 from contextlib import contextmanager
 
 from src.interface.data_repository_interface import IDataRepository
+from src.infrastructure.sqlite_repository import SQLiteRepository
 
 
 class DataStorageService:
 
     def __init__(self, db_path: str):
-        self.repository = IDataRepository(db_path)
+        self.repository: IDataRepository = SQLiteRepository(db_path)
         self.tables_created = False
 
     # --- Connection management ---

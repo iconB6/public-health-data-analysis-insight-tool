@@ -12,16 +12,26 @@ def cli():
     pass
 
 
-@cli.command()
-@click.option("--source-type", type=click.Choice(["csv", "json", "api", "db"]), required=True)
-@click.option("--source-path", required=True)
-@click.option("--db-name", required=False)
+@cli.command(name="import")
+@click.option("--source-type", "-t", type=click.Choice(["csv", "json", "api", "db"]), required=True)
+@click.option("--source-path", "-p", required=True)
+@click.option("--db-name", "-n", required=False)
 def import_data(source_type, source_path, db_name):
     """Import data from a source, clean it, and store into SQLite."""
     click.echo(f"[INFO] Importing from {source_type}: {source_path}")
     import_data_from_source(source_type, source_path, db_name)
     click.echo("[DONE] Data import completed.")
 
+# ==========================================
+# CLI COMMAND: Quick Import for CSV 
+# ==========================================
+@cli.command(name="csv")
+@click.argument("path")
+@click.option("--db-name", "-d", required=False)
+def import_csv(path, db_name):
+    """Quick import for CSV files."""
+    import_data_from_source("csv", path, db_name)
+    click.echo("[DONE] CSV import completed.")
 
 # ==========================================
 # CLI COMMAND: Start Interactive Shell

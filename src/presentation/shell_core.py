@@ -1,5 +1,5 @@
 import cmd
-from visualization import (
+from src.presentation.visualization import (
     summarize_database,
     preview_head,
     filter_by_fields,
@@ -8,6 +8,23 @@ from visualization import (
     plot_time_series,
 )
 from src.service.data_storage import DataStorageService
+
+def _coerce_value(s: str):
+    """Try to convert numeric strings to int/float, otherwise return the original string."""
+    # try int
+    try:
+        return int(s)
+    except ValueError:
+        pass
+    # try float
+    try:
+        return float(s)
+    except ValueError:
+        pass
+    # strip quotes if present
+    if (s.startswith("'") and s.endswith("'")) or (s.startswith('"') and s.endswith('"')):
+        return s[1:-1]
+    return s
 
 
 class DataShell(cmd.Cmd):
@@ -18,7 +35,15 @@ class DataShell(cmd.Cmd):
         super().__init__()
         self.conn = None
         self.db_path = None
-
+        
+    def onecmd(self, line):
+        """Override onecmd so that exceptions don't kill the shell."""
+        try:
+            return super().onecmd(line)
+        except Exception as e:
+            print(f"[ERROR] Command failed: {e}")
+            return False
+            
     # -------------------------------------
     # connect <db_path>
     # -------------------------------------
@@ -32,12 +57,6 @@ class DataShell(cmd.Cmd):
         self.conn = DataStorageService(db_path)
         self.conn.connect()
         self.db_path = db_path
-
-        print("[INFO] Summary:")
-        summarize_database(self.conn)
-
-        print("[INFO] First 10 rows:")
-        preview_head(self.conn)
 
         print("[DONE] Connected.")
 
@@ -78,44 +97,60 @@ class DataShell(cmd.Cmd):
     # filter <field>=<value> <field2>=<value2>
     # -------------------------------------
     def do_filter(self, args):
-        """Filter fields. Example: filter age>30 city=London"""
+        """Filter fields. Example: filter age=30 city=London"""
         if not self.conn:
-            print("[ERROR] Not connected.")
-            return
+            raise Exception("Not connected.")
 
         filters = {}
         parts = args.split()
+        if not parts:
+            raise ValueError("Usage: filter <field>=<value> [<field>=<value> ...]")
+
         for p in parts:
-            if "=" in p:
-                k, v = p.split("=", 1)
-            elif ">" in p:
-                k, v = p.split(">", 1)
-            filters[k] = v
+            if "=" not in p:
+                raise ValueError(f"Invalid filter expression '{p}'. Use field=value only.")
 
-        result = filter_by_fields(self.conn, "records", filters)
+            k, v = p.split("=", 1)
+            k = k.strip()
+            v = v.strip()
 
-        summarize_database(result)
-        preview_head(result)
+            if not k:
+                raise ValueError(f"Invalid field name in expression '{p}'")
+
+            filters[k] = _coerce_value(v)
+
+        try:
+            result = filter_by_fields(self.conn, filters)
+            preview_head(result)
+            summarize_database(result)
+        except Exception as e:
+            print(f"[INFO] {e}")
 
     # -------------------------------------
     # filter_date <datefield> <start> <end>
     # -------------------------------------
     def do_filter_date(self, args):
-        """Filter by date. Example: filter_date date 2020-01-01 2020-12-31"""
+        """Filter by date.
+        Examples:
+        filter_date DATE 2020-01-01
+        filter_date DATE 2020-01-01 2020-12-31
+        """
         if not self.conn:
             print("[ERROR] Not connected.")
             return
 
         parts = args.split()
-        if len(parts) != 3:
-            print("Usage: filter_date <date_field> <start> <end>")
+
+        if len(parts) not in (2, 3):
+            print("Usage: filter_date <date_field> <start> [end]")
             return
 
-        date_field, start, end = parts
-        result = filter_by_date(self.conn, "records", date_field, start, end)
+        date_field = parts[0]
+        start = parts[1]
+        end = parts[2] if len(parts) == 3 else None
 
+        result = filter_by_date(self.conn, date_field, start, end)
         summarize_database(result)
-        preview_head(result)
 
     # -------------------------------------
     # groupby <field1> <field2> agg=mean
@@ -137,7 +172,7 @@ class DataShell(cmd.Cmd):
             else:
                 group_fields.append(p)
 
-        result = groupby_fields(self.conn, "records", group_fields, agg_map)
+        result = groupby_fields(self.conn, group_fields, agg_map)
 
         summarize_database(result)
         preview_head(result)
@@ -145,17 +180,20 @@ class DataShell(cmd.Cmd):
     # -------------------------------------
     # trend <metric>
     # -------------------------------------
-    def do_trend(self, metric):
+    def do_trend(self, args):
         """Plot time-series trend. Example: trend price"""
         if not self.conn:
             print("[ERROR] Not connected.")
             return
-
-        if not metric:
-            print("Usage: trend <metric_field>")
+        
+        parts = args.split()
+        if len(parts) != 2:
+            print("Usage: trend <date_field> <metric_field>")
             return
 
-        plot_time_series(self.conn, "records", "date", metric)
+        date_field, metric = parts
+
+        plot_time_series(self.conn, date_field, metric)
 
     # -------------------------------------
     # exit / quit

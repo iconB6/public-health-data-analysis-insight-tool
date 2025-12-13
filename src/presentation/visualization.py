@@ -1,69 +1,151 @@
 import pandas as pd
 from src.service.data_summarizer import DataSummarizer
 from src.service.data_filter import DataFilter
+from tabulate import tabulate
+
+TOP_K = 5  # show top 5 categories per field
+BLUE = "\033[34m"
+RESET = "\033[0m"
+
+def blue(text: str) -> str:
+    return f"{BLUE}{text}{RESET}"
+
 
 def summarize_database(conn):
     """Backend interface: generate summary information."""
+    # obtain records
     try:
-        records = conn.get_all_records()
+        if isinstance(conn, list):
+            if len(conn) == 0:
+                print("[Empty dataset]")
+                return
+            records = conn
+        else:
+            records = conn.get_all_records()
         if not records:
             print("[INFO] No records to summarize.")
             return None
-
+        
+        # instantiate summarizer
         summarizer = DataSummarizer()
         try:
-            summary_df = summarizer.summary_stats(records)
+            stats = summarizer.summary_stats(records)
         except Exception as e:
             print(f"[ERROR] Failed to generate summary: {e}")
             return None
+        
+        record_count = stats.get("record_count")
+        numeric_summary = stats.get("numeric_summary")
+        categorical_summary = stats.get("categorical_summary")
 
-        # Pretty-print table using pandas formatting options
-        with pd.option_context("display.max_rows", None, "display.max_columns", None, "display.width", 120):
-            # Round to two decimals, index as variable name
-            formatted = summary_df.round(2).to_string()
+        # display summary
+        print("\n=== Dataset Overview ===")
+        print(f"Total record_id count: {record_count}")
 
-        print("\n=== Summary Statistics ===")
-        print(formatted)
-        print("=== End Summary ===\n")
+        # ---------- numeric ----------
+        if numeric_summary is not None and not numeric_summary.empty:
+            print("\n=== Numeric Fields Summary ===")
+            df = numeric_summary.round(2).reset_index()
+            df.rename(columns={"index": "FIELD"}, inplace=True)
+            df["FIELD"] = df["FIELD"].apply(lambda x: f"{BLUE}{x}{RESET}")
+            print(
+                tabulate(
+                    df,
+                    headers="keys",
+                    tablefmt="grid",
+                    showindex=False,
+                    colalign=("center",) + ("right",) * (len(df.columns) - 1)
+                )
+            )
+        else:
+            print("\n[INFO] No numeric fields to summarize.")
+        
+        # ---------- categorical ----------
+        if categorical_summary:
+            rows = []
 
-        return summary_df
+            for field, df in categorical_summary.items():
+                if df.empty:
+                    continue
+
+                # assume df has columns: [value, count]
+                items = [
+                    f"{row.iloc[0]}:{row.iloc[1]}"
+                    for _, row in df.head(TOP_K).iterrows()
+                ]
+                summary_str = " | ".join(items)
+
+                if len(df) > TOP_K:
+                    summary_str += " | ..."
+
+                rows.append({
+                    "FIELD": blue(field),
+                    "TOP_CATEGORIES": summary_str
+                })
+
+            if rows:
+                print("\n=== Categorical Fields Summary ===")
+                print(
+                    tabulate(
+                        rows,
+                        headers= "keys",
+                        tablefmt="grid",
+                        colalign=("center", "center")
+                    )
+                )
+            else:
+                print("\n[INFO] No categorical fields to summarize.")
+        else:
+            print("\n[INFO] No categorical fields to summarize.")
+        print("\n=== End Summary ===\n")
+
+        return stats
     
     except Exception as exc:
         print(f"[ERROR] summarize_database raised an exception: {exc}")
         return None
 
-def preview_head(conn, table_name, n=10):
+def preview_head(conn, n=10):
     """Backend interface: show the first n rows."""
-    # Case 1: in-memory list of dicts
     if isinstance(conn, list):
-        if len(conn) == 0:
-            print("[Empty dataset]")
-            return
+        if not conn:
+            raise ValueError("Empty dataset: no records to preview.")
 
         df = pd.DataFrame(conn)
         print(df.head(n).to_string(index=False))
         return
     
-    # Case 2: SQLite connection
-    records = conn.get_all_records()
+    if conn is None:
+        raise ValueError("No data source provided.")
 
-    if len(records) == 0:
-        print("[Empty database: no records in 'records' table]")
-        return
+    if not hasattr(conn, "get_all_records"):
+        raise TypeError(
+            f"Invalid data source type: {type(conn).__name__}"
+        )
 
-    df = pd.DataFrame(records)
-    print(df.head(n).to_string(index=False))
-    return
-
-
-def filter_by_fields(conn, table_name, filters: dict):
-    """Backend interface: field-based filtering."""
-    # obtain records
     records = conn.get_all_records()
 
     if not records:
-        print("[INFO] No records to filter.")
-        return []
+        raise ValueError("Empty dataset: database contains no records.")
+
+    df = pd.DataFrame(records)
+    print(df.head(n).to_string(index=False))
+
+
+def filter_by_fields(conn, filters: dict):
+    """Backend interface: field-based filtering."""
+    # obtain records
+    if conn is None:
+        raise ValueError("No data source provided.")
+
+    if not hasattr(conn, "get_all_records"):
+        raise TypeError(
+            f"Invalid data source type: {type(conn).__name__}"
+        )
+    records = conn.get_all_records()
+
+    if not records:
+        raise Exception("No records to filter.")
 
     # instantiate filter service, pass repository if available for column info
     dfilt = DataFilter(repository=conn if hasattr(conn, "get_columns") else None)
@@ -71,15 +153,14 @@ def filter_by_fields(conn, table_name, filters: dict):
     try:
         result = dfilt.filter_by_fields(records, **filters)
     except Exception as e:
-        print(f"[ERROR] filter_by_fields failed: {e}")
-        return []
+        raise Exception(f"filter_by_fields failed: {e}")
 
-    print(f"[INFO] Filtered rows: {len(result)}")
-    preview_head(result, table_name)
+    if not result:
+        raise ValueError("No records matched the given filters.")
 
     return result
 
-def filter_by_date(conn, table_name, date_field, start_date, end_date):
+def filter_by_date(conn, date_field, start_date, end_date = None):
     """Backend interface: date-range filtering."""
     # obtain records
     records = conn.get_all_records()
@@ -97,11 +178,11 @@ def filter_by_date(conn, table_name, date_field, start_date, end_date):
         return []
 
     print(f"[INFO] Date-filtered rows: {len(result)}")
-    preview_head(result, table_name)
+    preview_head(result)
 
     return result
 
-def groupby_fields(conn, table_name, by_fields, agg_map):
+def groupby_fields(conn, by_fields, agg_map):
     """Backend interface: groupby aggregation."""
     records = conn.get_all_records()
 
@@ -138,7 +219,7 @@ def groupby_fields(conn, table_name, by_fields, agg_map):
 
     return grouped
 
-def plot_time_series(conn, table_name, date_field, metric_field):
+def plot_time_series(conn, date_field, metric_field):
     """Backend interface: time-series trend plot using Matplotlib."""
     records = conn.get_all_records()
 

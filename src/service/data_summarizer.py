@@ -6,15 +6,15 @@ from datetime import datetime
 
 
 class DataSummarizer(IDataSummarizer):
-
     # ----------------------------------------------------------
     # 1. Summary statistics
     # ----------------------------------------------------------
-    def summary_stats(self, records: List[Dict[str, Any]]) -> pd.DataFrame:
+    def summary_stats(self, records: List[Dict[str, Any]]) -> dict:
         """
-        Compute summary stats (mean, min, max, count) for all numeric fields.
-        Input: List[Dict]
-        Output: pandas DataFrame
+        Compute summary statistics:
+        - Total record_id count
+        - Categorical fields: value counts
+        - Numeric fields: mean / min / max
         """
 
         if not records:
@@ -22,15 +22,62 @@ class DataSummarizer(IDataSummarizer):
 
         df = pd.DataFrame(records)
 
-        # Identify numeric columns
-        numeric_cols = df.select_dtypes(include=["int64", "float64", "int32", "float32"]).columns
+        # ---------------------------------
+        # 1. record_id count
+        # ---------------------------------
+        if "record_id" in df.columns:
+            record_count = df["record_id"].nunique()
+        else:
+            record_count = len(df)
 
-        if len(numeric_cols) == 0:
-            raise ValueError("No numeric columns to summarize.")
+        print(f"[INFO] Total record_id count: {record_count}")
 
-        summary = df[numeric_cols].agg(["count", "mean", "min", "max"]).transpose()
+        # ---------------------------------
+        # 2. Identify column types
+        # ---------------------------------
+        numeric_cols = df.select_dtypes(
+            include=["int64", "float64", "int32", "float32"]
+        ).columns.tolist()
 
-        return summary
+        categorical_cols = df.select_dtypes(
+            include=["object", "category"]
+        ).columns.tolist()
+
+        categorical_cols = [c for c in categorical_cols if c != "record_id" and c not in numeric_cols]
+        numeric_cols = [c for c in numeric_cols if c != "record_id"]
+
+        # ---------------------------------
+        # 3. Numeric summary
+        # ---------------------------------
+        numeric_summary = pd.DataFrame()
+
+        if numeric_cols:
+            numeric_summary = (
+                df[numeric_cols]
+                .agg(["mean", "min", "max"])
+                .transpose()
+            )
+
+        # ---------------------------------
+        # 4. Categorical summary
+        # ---------------------------------
+        categorical_summary = {}
+
+        for col in categorical_cols:
+            counts = (
+                df[col]
+                .value_counts(dropna=False)
+                .reset_index()
+            )
+            counts.columns = [col, "count"]
+            categorical_summary[col] = counts
+
+        return {
+            "record_count": record_count,
+            "numeric_summary": numeric_summary,
+            "categorical_summary": categorical_summary
+        }
+
 
     # ----------------------------------------------------------
     # 2. Trend over time for a numeric field

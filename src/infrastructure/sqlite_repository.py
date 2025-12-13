@@ -4,7 +4,61 @@ import re
 from src.interface.data_repository_interface import IDataRepository
 from datetime import datetime
 
+class SchemaInferer:
 
+    CATEGORICAL_KEYWORDS = {
+        "year", "quarter", "month", "week",
+        "country", "region", "group", "category", "type", "code"
+    }
+
+    def infer_column_types(self, rows: List[Dict[str, Any]]) -> Dict[str, str]:
+        """
+        Infer SQLite column types using:
+        1. Semantic rules (column name)
+        2. Multi-row value inspection
+        """
+        if not rows:
+            raise ValueError("Cannot infer schema from empty rows.")
+
+        col_values = {}
+        for row in rows:
+            for k, v in row.items():
+                if v is not None and v != "":
+                    col_values.setdefault(k, []).append(v)
+
+        inferred = {}
+
+        for col, values in col_values.items():
+            col_lower = col.lower()
+
+            # ---------- ① semantic override ----------
+            if any(keyword in col_lower for keyword in self.CATEGORICAL_KEYWORDS):
+                inferred[col] = "TEXT"
+                continue
+
+            # ---------- ② numeric inference ----------
+            is_int = True
+            is_float = True
+
+            for v in values:
+                try:
+                    int(v)
+                except:
+                    is_int = False
+                try:
+                    float(v)
+                except:
+                    is_float = False
+
+            if is_int:
+                inferred[col] = "INTEGER"
+            elif is_float:
+                inferred[col] = "REAL"
+            else:
+                inferred[col] = "TEXT"
+
+        return inferred
+    
 class SQLiteRepository(IDataRepository):
 
     def __init__(self, db_path: str = ":memory:"):
@@ -66,48 +120,21 @@ class SQLiteRepository(IDataRepository):
                 self.commit()
             except Exception:
                 pass
-    
-    # ---- Type inference ----
-    def infer_type(self, value: Any) -> str:
-        """
-        Infer SQLite column type from Python value.
-        """
-        if value is None:
-            return "TEXT"  # default fallback
-
-        # Try INT
-        try:
-            int(value)
-            return "INTEGER"
-        except:
-            pass
-
-        # Try FLOAT
-        try:
-            float(value)
-            return "REAL"
-        except:
-            pass
-
-        # Try DATE (YYYY-MM-DD)
-        if isinstance(value, str) and re.match(r"^\d{4}-\d{2}-\d{2}$", value):
-            return "TEXT"   # SQLite has no pure DATE type, store as TEXT
-
-        # Default
-        return "TEXT"
 
     def create_tables(self, rows: List[Dict[str, Any]]):
         if not rows:
             raise ValueError("Cannot infer structure from empty rows.")
-
-        sample = rows[0]
+        
+        inferer = SchemaInferer()
+        col_types = inferer.infer_column_types(rows)
 
         columns_sql = ["record_id INTEGER PRIMARY KEY AUTOINCREMENT"]
-
-        for key, value in sample.items():
-            col_type = self.infer_type(value)
-            safe_key = key.replace(" ", "_").replace("-", "_")
-            # quote identifiers to avoid conflicts with SQL keywords (e.g. group)
+        for key, col_type in col_types.items():
+            safe_key = (
+                key.strip()
+                .replace(" ", "_")
+                .replace("-", "_")
+            )
             columns_sql.append(f'"{safe_key}" {col_type}')
 
         create_sql = f"""
