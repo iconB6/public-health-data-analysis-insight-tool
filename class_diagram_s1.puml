@@ -1,0 +1,105 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+package presentation {
+    class DataShell {
+        - conn : DataStorageService
+        - db_path : str
+        + do_connect()
+        + do_disconnect()
+        + do_summary()
+        + do_preview()
+        + do_filter()
+        + do_filter_date()
+        + do_groupby()
+        + do_trend()
+    }
+
+    class Visualization {
+        + summarize_database()
+        + preview_head()
+        + plot_time_series()
+    }
+}
+
+package service {
+    class DataLoaderService {
+        + load(source_type, source_path)
+    }
+
+    class DataCleanerService {
+        + clean(records)
+    }
+
+    class DataFilterService {
+        + filter_by_fields()
+        + filter_by_date()
+        + groupby_fields()
+    }
+
+    class DataSummarizerService {
+        + summary_stats()
+    }
+
+    class DataStorageService {
+        - repository : DataRepository
+        + connect()
+        + disconnect()
+        + get_all_records()
+        + save_records()
+    }
+}
+
+package infrastructure {
+    class DataLoaderFactory {
+        + create_loader(source_type)
+    }
+
+    class CSVLoader
+    class JSONLoader
+    class APILoader
+    class DBLoader
+
+    class SQLiteRepository {
+        + connect()
+        + disconnect()
+        + insert()
+        + select()
+        + delete()
+    }
+}
+
+package interface {
+    interface DataLoaderInterface
+    interface DataRepositoryInterface
+    interface DataCleanerInterface
+    interface DataFilterInterface
+    interface DataSummarizerInterface
+}
+
+' -------- Inheritance / Implementation --------
+DataLoaderInterface <|.. CSVLoader
+DataLoaderInterface <|.. JSONLoader
+DataLoaderInterface <|.. APILoader
+DataLoaderInterface <|.. DBLoader
+
+DataRepositoryInterface <|.. SQLiteRepository
+
+DataCleanerInterface <|.. DataCleanerService
+DataFilterInterface <|.. DataFilterService
+DataSummarizerInterface <|.. DataSummarizerService
+
+' -------- Dependencies --------
+DataShell --> DataStorageService
+DataShell --> DataFilterService
+DataShell --> DataSummarizerService
+DataShell --> Visualization
+
+DataLoaderService --> DataLoaderFactory
+DataLoaderService --> DataCleanerService
+DataLoaderService --> DataStorageService
+
+DataStorageService --> DataRepositoryInterface
+DataLoaderFactory --> DataLoaderInterface
+
+@enduml

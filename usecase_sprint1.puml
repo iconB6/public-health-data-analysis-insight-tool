@@ -1,21 +1,53 @@
 @startuml
+left to right direction
+skinparam packageStyle rectangle
 
-actor Researcher
+actor "User (Researcher)" as User
 
 rectangle "Data Insights Tool" {
 
-    usecase "Load Dataset (CSV)" as UC1
-    usecase "Clean Data" as UC2
-    usecase "Filter Data" as UC3
-    usecase "Generate Summary" as UC4
-    usecase "View Results (CLI)" as UC5
+  usecase "UC0: Import and Store Data\n(Load, Clean, Infer Types,\nCreate Database)" as UC0
 
+  usecase "UC1: Start Analysis Session\n(Connect Database)" as UC1
+
+  usecase "UC2: Data Analysis" as UC2
+  usecase "UC2a: Filter Data" as UC2a
+  usecase "UC2b: Generate Summary\nand Preview" as UC2b
+  usecase "UC2c: Visualise Trends" as UC2c
+
+  usecase "UC4: Manage Data" as UC4
+  usecase "UC4a: Track Logs" as UC4a
+  usecase "UC4b: Rollback /\nRecovery Management" as UC4b
+  usecase "UC4c: CRUD Operations" as UC4c
+
+  usecase "UC3: Exit Analysis Session" as UC3
 }
 
-Researcher --> UC1
-Researcher --> UC3
-Researcher --> UC4
-Researcher --> UC5
-UC1 --> UC2
+' User interactions
+User --> UC0
+User --> UC1
+User --> UC2
+User --> UC4
+User --> UC3
+
+' Preconditions
+UC1 ..> UC0 : <<include>>
+
+' Analysis requires active session
+UC1 ..> UC2 : <<include>>
+UC1 ..> UC4 : <<include>>
+
+' Data Analysis sub use cases
+UC2 ..> UC2a : <<include>>
+UC2 ..> UC2b : <<include>>
+UC2 ..> UC2c : <<include>>
+
+' Data Management sub use cases
+UC4 ..> UC4a : <<include>>
+UC4 ..> UC4b : <<include>>
+UC4 ..> UC4c : <<include>>
+
+' Exit session
+UC3 ..> UC1 : <<extend>>
 
 @enduml

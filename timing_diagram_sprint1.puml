@@ -1,19 +1,37 @@
 @startuml
-actor Researcher
+actor User
+participant "CLI (click)" as CLI
+participant "import_data_from_source" as Importer
+participant "DataLoadingService" as Loader
+participant "DataCleaner" as Cleaner
+participant "DataStorageService" as Storage
+participant "SQLiteRepository" as Repo
+database "SQLite DB" as DB
 
-Researcher -> CLI: select "Load and Analyze"
-CLI -> CSVLoader: load(file)
-CSVLoader --> CLI: raw_data
+User -> CLI : import
+CLI -> Importer : import_data_from_source()
 
-CLI -> DataCleaner: clean(raw_data)
-DataCleaner --> CLI: cleaned_data
+Importer -> Loader : load_data()
+Loader --> Importer : raw rows
 
-CLI -> DataFilter: filter(cleaned_data, criteria)
-DataFilter --> CLI: filtered_data
+Importer -> Cleaner : clean(rows)
+Cleaner --> Importer : cleaned rows
 
-CLI -> Summarizer: summarize(filtered_data)
-Summarizer --> CLI: summary
+Importer -> Storage : connect()
+Storage -> Repo : connect()
+Repo -> DB : OPEN CONNECTION
 
-CLI -> Researcher: display results
+Importer -> Storage : save_full_record()
+Storage -> Repo : create_tables()
+Repo -> DB : CREATE TABLE
+
+Storage -> Repo : save_records()
+Repo -> DB : INSERT RECORDS
+
+Importer -> Storage : disconnect()
+Storage -> Repo : disconnect()
+Repo -> DB : CLOSE CONNECTION
+
+CLI --> User : [DONE] Data import completed
 
 @enduml
