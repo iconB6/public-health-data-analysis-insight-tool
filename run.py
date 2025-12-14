@@ -1,40 +1,149 @@
-import click
-from application.import_pipeline import *
+# run.py
+import argparse
+from src.application.import_pipeline import import_data
+from src.application.analyse_service import AnalyseService
+from src.infrastructure.sqlite_repository import SQLiteRepository
+from src.application.visualization import Visualizer
+from src.utils.logger import get_logger
+
+logger = get_logger("CLI")
 
 
-# ==========================================
-# CLI COMMAND: Import Data (One-time)
-# ==========================================
-@click.group()
-def cli():
-    """Main CLI group for Data Insights Tool."""
-    pass
+# ========== ARGUMENT PARSING ==========
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Data Analysis CLI")
+
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # import command (one-shot)
+    import_parser = subparsers.add_parser("import", help="Import data into database")
+    import_parser.add_argument("--source", "-s", required=True)
+    import_parser.add_argument("--path", "-p", required=True)
+    import_parser.add_argument("--dbtype", "-d", default="sqlite")
+    import_parser.add_argument("--db-path", "-o", required=True)
+
+    # analyse command (interactive)
+    analyse_parser = subparsers.add_parser("analyse", help="Start analysis session")
+    analyse_parser.add_argument("--dbtype", "-d", default="sqlite")
+    analyse_parser.add_argument("--db-path", "-o", required=True)
+
+    return parser.parse_args()
 
 
-@cli.command(name="import")
-@click.option("--source-type", "-t", type=click.Choice(["csv", "json", "api", "db"]), required=True)
-@click.option("--source-path", "-p", required=True)
-@click.option("--db-name", "-n", required=False)
-def import_data(source_type, source_path, db_name):
-    """Import data from a source, clean it, and store into SQLite."""
-    click.echo(f"[INFO] Importing from {source_type}: {source_path}")
-    import_data_from_source(source_type, source_path, db_name)
-    click.echo("[DONE] Data import completed.")
+# ========== IMPORT COMMAND ==========
 
-# ==========================================
-# CLI COMMAND: Quick Import for CSV 
-# ==========================================
-@cli.command(name="csv")
-@click.argument("path")
-@click.option("--db-name", "-d", required=False)
-def import_csv(path, db_name):
-    """Quick import for CSV files."""
-    import_data_from_source("csv", path, db_name)
-    click.echo("[DONE] CSV import completed.")
+def handle_import(args):
+    logger.info("Starting import pipeline")
+    if args.dbtype == "sqlite":
+        repository = SQLiteRepository(args.db_path)
+    else:
+        raise ValueError(f"Unsupported db type: {args.dbtype}")
+    
+    inserted = import_data(
+        source_type=args.source,
+        source_path=args.path,
+        repository=repository,
+    )
+    logger.info("Import completed successfully")
+    logger.info(f"Inserted {inserted} records")
 
 
-# ==========================================
-# Entry point
-# ==========================================
+# ========== ANALYSE COMMAND ==========
+
+def handle_analyse(args):
+    logger.info("Starting analysis session")
+
+    if args.dbtype == "sqlite":
+        repository = SQLiteRepository(args.db_path)
+    else:
+        raise ValueError(f"Unsupported db type: {args.dbtype}")
+    
+    visualizer = Visualizer()
+
+    service = AnalyseService(
+        repository=repository,
+        visualizer=visualizer,
+    )
+
+    analyse_repl(service)
+
+
+# ========== ANALYSE REPL ==========
+
+def analyse_repl(service: AnalyseService):
+    print("Enter analysis mode. Type 'help' for commands.")
+
+    while True:
+        try:
+            cmd = input("analyse> ").strip()
+            if not cmd:
+                continue
+
+            parts = cmd.split()
+            command = parts[0]
+
+            if command == "help":
+                print_help()
+
+            elif command == "filter":
+                # filter COUNTRY eq USA
+                col, op, val = parts[1], parts[2], parts[3]
+                service.run_filter(conditions={col: {op: val}})
+
+            elif command == "summary":
+                service.run_summary()
+
+            elif command == "trend":
+                # trend DATE VALUE mean
+                date_field, metric_field = parts[1], parts[2]
+                agg = parts[3] if len(parts) > 3 else "count"
+                service.run_trend(
+                    date_field=date_field,
+                    metric_field=metric_field,
+                    agg=agg,
+                )
+
+            elif command == "export":
+                target, path = parts[1], parts[2]
+                service.export(target, path)
+
+            elif command == "exit":
+                print("Bye.")
+                break
+
+            else:
+                print(f"Unknown command: {command}")
+
+        except Exception as e:
+            print(f"Error: {e}")
+            logger.exception("CLI error")
+
+
+# ========== HELP ==========
+
+def print_help():
+    print("""
+Available commands:
+  filter <COLUMN> <OP> <VALUE>
+  summary
+  trend <DATE_FIELD> <METRIC_FIELD> [AGG]
+  export summary <PATH>
+  export trend <PATH>
+  exit
+""")
+
+
+# ========== MAIN ==========
+
+def main():
+    args = parse_args()
+
+    if args.command == "import":
+        handle_import(args)
+    elif args.command == "analyse":
+        handle_analyse(args)
+
+
 if __name__ == "__main__":
-    cli()
+    main()
