@@ -84,13 +84,16 @@ Designed with layered architecture, clear separation of concerns, and full unit/
 src/
 ├── application/
 │   ├── analyse_service.py
+│   ├── visualization.py
 │   └── import_pipeline.py
 │
 ├── service/
 │   ├── filter_service.py
 │   ├── summary_service.py
 │   ├── trend_service.py
-│   └── visualization.py
+│   ├── loader_service.py
+│   ├── storage_service.py
+│   └── clean_service.py
 │
 ├── infrastructure/
 │   ├── sqlite_repository.py
