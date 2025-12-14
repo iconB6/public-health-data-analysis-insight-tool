@@ -1,5 +1,4 @@
-from typing import Any
-import copy
+from typing import Optional, Dict, Any
 
 
 class AnalyseService:
@@ -7,70 +6,96 @@ class AnalyseService:
     def __init__(
         self,
         *,
-        filter_service: Any,
-        summary_service: Any,
-        trend_service: Any,
-        visualizer: Any,
+        filter_service,
+        summary_service,
+        trend_service,
+        visualizer,
     ):
-        self._filter = filter_service
-        self._summary = summary_service
-        self._trend = trend_service
-        self._visualizer = visualizer
+        self.filter_service = filter_service
+        self.summary_service = summary_service
+        self.trend_service = trend_service
+        self.visualizer = visualizer
 
-        # preview cache (single-item)
-        self._last_filtered_rows = None
-        self._last_summary = None
-        self._last_trend_figure = None
+        # preview cache (only keep latest)
+        self._filtered_rows: Optional[list] = None
+        self._summary_preview: Optional[dict] = None
+        self._trend_data_preview: Optional[dict] = None
+        self._trend_figure_preview: Optional[Any] = None
 
     # ---------- Filter + Summary ----------
 
-    def run_filter(self, **filters):
+    def run_filter(self, *, date_from=None, date_to=None, conditions=None):
         """
-        Run filtering, then immediately generate and display summary preview.
+        Run filter, then immediately compute and preview summary.
         """
-        rows = self._filter.filter(**filters)
-        self._last_filtered_rows = rows
+        rows = self.filter_service.filter(
+            date_from=date_from,
+            date_to=date_to,
+            conditions=conditions,
+        )
 
-        summary = self._summary.summarize(rows=rows)
-        summary_snapshot = copy.deepcopy(summary)
-        self._last_summary = summary_snapshot
+        self._filtered_rows = rows
 
-        self._visualizer.print_table(summary_snapshot)
-        return summary_snapshot
+        summary = self.summary_service.summarize(rows)
+
+        # overwrite previous preview
+        self._summary_preview = summary
+
+        # preview immediately
+        self.visualizer.print_table(summary)
+
+        return rows
 
     # ---------- Trend ----------
-
-    def run_trend(self, **kwargs):
+    def run_trend(
+    self,
+    *,
+    date_field: str,
+    metric_field: str,
+    agg: str = "count",
+    date_from=None,
+    date_to=None,
+    conditions=None
+):
         """
-        Generate trend data and preview visualization.
+        Generate trend data and preview trend figure.
+        Can run on full table or filtered subset.
         """
-        trend_data = self._trend.trend_over_time(**kwargs)
 
-        figure = self._visualizer.plot_trend(trend_data)
-        figure_snapshot = object() if figure is not None else None
-        self._last_trend_figure = figure_snapshot
+        trend_data = self.trend_service.trend_over_time(
+            date_field=date_field,
+            metric_field=metric_field,
+            agg=agg,
+            date_from=date_from,
+            date_to=date_to,
+            conditions=conditions,
+        )
 
-        self._visualizer.show(figure_snapshot)
+        figure = self.visualizer.plot_trend(trend_data)
+        self.visualizer.show(figure)
+
+        # only keep latest preview
+        self._trend_data_preview = trend_data
+        self._trend_figure_preview = figure
+
         return trend_data
-
+    
     # ---------- Export ----------
 
-    def export(self, *, type: str, path: str):
+    def export_summary(self, path: str):
         """
-        Export the latest preview (summary or trend).
+        Export the latest summary preview.
         """
-        if type == "summary":
-            if self._last_summary is None:
-                raise RuntimeError("No summary preview to export")
+        if self._summary_preview is None:
+            raise RuntimeError("No summary preview to export.")
 
-            self._visualizer.export_table(self._last_summary, path)
-            return path
+        self.visualizer.export_table(self._summary_preview, path)
 
-        if type == "trend":
-            if self._last_trend_figure is None:
-                raise RuntimeError("No trend preview to export")
+    def export_trend(self, path: str):
+        """
+        Export the latest trend preview figure.
+        """
+        if self._trend_figure_preview is None:
+            raise RuntimeError("No trend preview to export.")
 
-            self._visualizer.export_figure(self._last_trend_figure, path)
-            return path
-
-        raise ValueError(f"Unsupported export type: {type}")
+        self.visualizer.export_figure(self._trend_figure_preview, path)

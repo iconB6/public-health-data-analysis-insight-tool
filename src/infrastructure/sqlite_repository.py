@@ -10,6 +10,7 @@ class SQLiteRepository(IRepository):
     def __init__(self, db_path: str):
         self.db_path = db_path
         self.conn = None
+        self.TABLE = "records"
 
     def connect(self):
         if self.conn is None:

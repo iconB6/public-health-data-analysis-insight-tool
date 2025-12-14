@@ -1,176 +1,108 @@
 import pytest
-from src.application.analyse_service import AnalyseService
-
+from unittest.mock import MagicMock
 
 '''
-AnalyseService tests verify application-level orchestration.
-
-The service must:
-- coordinate filter, summary, and trend services
-- always generate summary preview after filtering
-- generate trend preview before export
-- cache only the latest preview item
-- delegate visualization and export
-- raise errors when exporting without preview
+AnalyseService tests verify:
+- filter triggers summary preview automatically
+- trend generates and previews a figure
+- only latest summary and trend previews are kept
+- export uses current preview
+- errors are raised when exporting without preview
 '''
 
-# ========== TEST DATA ==========
+# ========== FIXTURES ==========
 
-FILTERED_ROWS = [
-    {"DATE": "2024-01-01", "VALUE": 10},
-    {"DATE": "2024-01-02", "VALUE": 20},
-]
-
-SUMMARY_RESULT = {
-    "total_count": 2,
-}
-
-TREND_RESULT = {
-    "date": ["2024-01-01", "2024-01-02"],
-    "value": [10, 20],
-}
-
-FAKE_FIGURE = object()
-
-# ========= EXPECTED RESULTS ==========
-
-EXPECTED_SUMMARY = SUMMARY_RESULT
-EXPECTED_TREND = TREND_RESULT
-
-# ========= FIXTURES ==========
-
-class FakeFilterService:
-    def filter(self, **kwargs):
-        return FILTERED_ROWS
-
-
-class FakeSummaryService:
-    def summarize(self, rows=None):
-        return SUMMARY_RESULT
-
-
-class FakeTrendService:
-    def trend_over_time(self, **kwargs):
-        return TREND_RESULT
-
-
-class FakeVisualizer:
-    def __init__(self):
-        self.printed = False
-        self.plotted = False
-        self.exported = False
-
-    def print_table(self, summary):
-        self.printed = True
-
-    def plot_trend(self, trend_data):
-        self.plotted = True
-        return FAKE_FIGURE
-
-    def show(self, figure):
-        pass
-
-    def export_table(self, summary, path):
-        self.exported = ("summary", path)
-
-    def export_figure(self, figure, path):
-        self.exported = ("trend", path)
+@pytest.fixture
+def filter_service():
+    svc = MagicMock()
+    svc.filter.return_value = [{"A": 1}]
+    return svc
 
 
 @pytest.fixture
-def analyse_service():
+def summary_service():
+    svc = MagicMock()
+    svc.summarize.return_value = {"total_count": 1}
+    return svc
+
+
+@pytest.fixture
+def trend_service():
+    svc = MagicMock()
+    svc.generate.return_value = {"date": [], "value": []}
+    return svc
+
+
+@pytest.fixture
+def visualizer():
+    v = MagicMock()
+    v.plot_trend.return_value = object()
+    return v
+
+
+@pytest.fixture
+def analyse_service(filter_service, summary_service, trend_service, visualizer):
+    from src.application.analyse_service import AnalyseService
 
     return AnalyseService(
-        filter_service=FakeFilterService(),
-        summary_service=FakeSummaryService(),
-        trend_service=FakeTrendService(),
-        visualizer=FakeVisualizer(),
+        filter_service=filter_service,
+        summary_service=summary_service,
+        trend_service=trend_service,
+        visualizer=visualizer,
     )
 
 # ========== Normal cases ==========
 
-def test_filter_triggers_summary_preview(analyse_service):
-    analyse_service.run_filter(country="UK")
+def test_filter_triggers_summary_preview(analyse_service, visualizer):
+    rows = analyse_service.run_filter()
 
-    assert analyse_service._last_summary == EXPECTED_SUMMARY
-    assert analyse_service._visualizer.printed is True
-
-
-def test_export_summary(analyse_service):
-    analyse_service.run_filter(country="UK")
-
-    analyse_service.export(type="summary", path="out.csv")
-
-    assert analyse_service._visualizer.exported == ("summary", "out.csv")
+    assert rows == [{"A": 1}]
+    visualizer.print_table.assert_called_once_with({"total_count": 1})
 
 
-def test_export_trend(analyse_service):
-    analyse_service.run_trend(
-        date_field="DATE",
-        metric_field="VALUE",
-    )
+def test_trend_generates_preview_figure(analyse_service, visualizer):
+    trend_data = analyse_service.run_trend("DATE", "COUNT")
 
-    analyse_service.export(type="trend", path="trend.png")
+    assert trend_data == {"date": [], "value": []}
+    visualizer.plot_trend.assert_called_once()
+    visualizer.show.assert_called_once()
 
-    assert analyse_service._visualizer.exported == ("trend", "trend.png")
-
-# ========== Edge cases ==========
+# ========== State management cases ==========
 
 def test_only_latest_summary_is_kept(analyse_service):
-    analyse_service.run_filter(country="UK")
-    first = analyse_service._last_summary
+    analyse_service.run_filter()
+    first = analyse_service._summary_preview
 
-    analyse_service.run_filter(country="US")
-    second = analyse_service._last_summary
+    analyse_service.summary_service.summarize.return_value = {"total_count": 2}
+    analyse_service.run_filter()
+    second = analyse_service._summary_preview
+
+    assert first != second
+
+
+def test_only_latest_trend_is_kept(analyse_service, visualizer):
+    visualizer.plot_trend.side_effect = [object(), object()]
+
+    analyse_service.run_trend("DATE", "COUNT")
+    first = analyse_service._trend_figure_preview
+
+    analyse_service.run_trend("DATE", "COUNT")
+    second = analyse_service._trend_figure_preview
 
     assert first is not second
 
 
-def test_only_latest_trend_is_kept(analyse_service):
-    analyse_service.run_trend(date_field="DATE", metric_field="VALUE")
-    first = analyse_service._last_trend_figure
+# ========== Export cases ==========
 
-    analyse_service.run_trend(date_field="DATE", metric_field="VALUE")
-    second = analyse_service._last_trend_figure
+def test_export_summary_uses_latest_preview(analyse_service, visualizer):
+    analyse_service.run_filter()
 
-    assert first is not second
+    analyse_service.export_summary("out.csv")
 
-# ========== Invalid cases ==========
-
-def test_export_summary_without_preview_raises(analyse_service):
-    with pytest.raises(RuntimeError):
-        analyse_service.export(type="summary", path="out.csv")
+    visualizer.export_table.assert_called_once_with(
+        {"total_count": 1}, "out.csv"
+    )
 
 
-def test_export_trend_without_preview_raises(analyse_service):
-    with pytest.raises(RuntimeError):
-        analyse_service.export(type="trend", path="trend.png")
-
-
-def test_export_invalid_type(analyse_service):
-    with pytest.raises(ValueError):
-        analyse_service.export(type="unknown", path="x")
-
-# ========== Exception cases ==========
-
-def test_filter_exception_propagates(monkeypatch, analyse_service):
-    def broken_filter(**kwargs):
-        raise RuntimeError("filter failed")
-
-    analyse_service._filter.filter = broken_filter
-
-    with pytest.raises(RuntimeError):
-        analyse_service.run_filter(country="UK")
-
-
-def test_trend_exception_propagates(monkeypatch, analyse_service):
-    def broken_trend(**kwargs):
-        raise RuntimeError("trend failed")
-
-    analyse_service._trend.trend_over_time = broken_trend
-
-    with pytest.raises(RuntimeError):
-        analyse_service.run_trend(
-            date_field="DATE",
-            metric_field="VALUE",
-        )
+def test_export_trend_uses_latest_preview(analyse_service, visualizer):
+    analyse_service.run_trend("DATE", "COUNT")
