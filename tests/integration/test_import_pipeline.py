@@ -2,7 +2,7 @@ import sqlite3
 import pytest
 from pathlib import Path
 
-from src.service.import_pipeline import import_data
+from application.import_pipeline import import_data
 from src.infrastructure.sqlite_repository import SQLiteRepository
 
 

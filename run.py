@@ -1,5 +1,5 @@
 import click
-from service.import_pipeline import *
+from application.import_pipeline import *
 
 
 # ==========================================

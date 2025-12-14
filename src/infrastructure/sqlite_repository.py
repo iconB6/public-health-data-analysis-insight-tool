@@ -1,6 +1,7 @@
 # src/repository/sqlite_repository.py
 import sqlite3
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
+from datetime import date
 from src.interface.repository_interface import IRepository
 
 
@@ -149,3 +150,34 @@ class SQLiteRepository(IRepository):
 
         cur = self.conn.execute(sql, params)
         return cur.rowcount
+    
+    # ======== query ===========
+    def query(
+        self,
+        table: str,
+        filters: Dict[str, Any],
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[Dict[str, Any]]:
+
+        sql = f"SELECT * FROM {table} WHERE 1=1"
+        params = []
+
+        for key, value in filters.items():
+            sql += f" AND {key} = ?"
+            params.append(value)
+
+        if start_date:
+            sql += " AND date >= ?"
+            params.append(start_date.isoformat())
+
+        if end_date:
+            sql += " AND date <= ?"
+            params.append(end_date.isoformat())
+
+        with sqlite3.connect(self._db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(sql, params)
+            rows = cursor.fetchall()
+
+        return [dict(row) for row in rows]

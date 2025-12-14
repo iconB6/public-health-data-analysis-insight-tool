@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Optional
+from datetime import date
 
 
 class IRepository(ABC):
@@ -40,3 +41,19 @@ class IRepository(ABC):
         """
         Insert rows and return inserted count.
         """
+    
+    @abstractmethod
+    def query(
+        self,
+        table: str,
+        filters: Dict[str, Any],
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> List[Dict[str, Any]]:
+        """
+        Generic query interface.
+
+        Returns:
+            List of rows as dicts
+        """
+        pass
