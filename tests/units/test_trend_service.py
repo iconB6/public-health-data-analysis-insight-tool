@@ -1,6 +1,8 @@
 import pytest
 import datetime
 from src.service.trend_service import TrendService
+from typing import Any, Dict, List, Optional
+from datetime import date
 
 
 '''
@@ -52,8 +54,15 @@ class FakeRepository:
     def __init__(self, rows):
         self._rows = rows
 
-    def query_for_trend(self, trend_data):
-        return object()  
+    def query_for_trend(
+    self,
+    *,
+    date_field: str,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    conditions: Optional[Dict[str, Dict[str, Any]]] = None,
+) :
+        return self._rows  
 
     def show(self, figure):
         pass

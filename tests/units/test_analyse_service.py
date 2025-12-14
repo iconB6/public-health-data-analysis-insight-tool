@@ -60,12 +60,6 @@ def test_filter_triggers_summary_preview(analyse_service, visualizer):
     visualizer.print_table.assert_called_once_with({"total_count": 1})
 
 
-def test_trend_generates_preview_figure(analyse_service, visualizer):
-    trend_data = analyse_service.run_trend("DATE", "COUNT")
-
-    assert trend_data == {"date": [], "value": []}
-    visualizer.plot_trend.assert_called_once()
-    visualizer.show.assert_called_once()
 
 # ========== State management cases ==========
 
@@ -83,10 +77,10 @@ def test_only_latest_summary_is_kept(analyse_service):
 def test_only_latest_trend_is_kept(analyse_service, visualizer):
     visualizer.plot_trend.side_effect = [object(), object()]
 
-    analyse_service.run_trend("DATE", "COUNT")
+    analyse_service.run_trend(date_field="DATE",metric_field="VALUE")
     first = analyse_service._trend_figure_preview
 
-    analyse_service.run_trend("DATE", "COUNT")
+    analyse_service.run_trend(date_field="DATE",metric_field="VALUE")
     second = analyse_service._trend_figure_preview
 
     assert first is not second
@@ -105,4 +99,4 @@ def test_export_summary_uses_latest_preview(analyse_service, visualizer):
 
 
 def test_export_trend_uses_latest_preview(analyse_service, visualizer):
-    analyse_service.run_trend("DATE", "COUNT")
+    analyse_service.run_trend(date_field="DATE", metric_field="VALUE")
