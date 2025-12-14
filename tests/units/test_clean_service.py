@@ -1,6 +1,6 @@
 import pytest
 from src.service.clean_service import DataCleanService
-from datetime import datetime
+from datetime import date
 
 '''
 def clean(self, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -61,7 +61,7 @@ EXPECTED_NORMAL = [
         "NAME": "Alice",
         "AGE": 18.0,
         "SCORE": 90.5,
-        "BIRTH_DATE": datetime.date(2006, 1, 1),
+        "BIRTH_DATE": date(2006, 1, 1),
         "REMARK": None
     }
 ]
@@ -78,7 +78,7 @@ EXPECTED_EDGE = [
         "NAME": None,
         "AGE": 0.0,
         "SCORE": 0.0,
-        "DATE": datetime.date(2020, 1, 1)
+        "DATE": date(2020, 1, 1)
     }
 ]
 
@@ -86,15 +86,15 @@ EXPECTED_ROWS_WITH_INVALID_KEYS = [
     {
         "FAKE": "z",
         "NAME": "Alice",
-        "AGE": "18"
+        "AGE": 18
     }
 ]
 
 EXPECTED_ROWS_DETECT_NUMBER =[
     {
-        "A": " 123 ", 
-        "B": "NA", 
-        "C": "1,234"
+        "A": 123, 
+        "B": None, 
+        "C": 1234
     }
 ]
 # ========= FIXTURES ==========
