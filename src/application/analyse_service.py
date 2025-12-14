@@ -1,29 +1,26 @@
 from typing import Optional, Dict, Any
 from src.utils.logger import get_logger
-
+from src.service.filter_service import FilterService
+from src.service.summary_service import SummaryService
+from src.service.trend_service import TrendService
 
 class AnalyseService:
 
-    def __init__(
-        self,
-        *,
-        filter_service,
-        summary_service,
-        trend_service,
-        visualizer,
-    ):
+    def __init__(self, repository, visualizer):
         self.logger = get_logger(self.__class__.__name__)
 
-        self.filter_service = filter_service
-        self.summary_service = summary_service
-        self.trend_service = trend_service
+        self.repository = repository
+        self.repository.connect()
         self.visualizer = visualizer
 
-        # preview cache (only keep latest)
-        self._filtered_rows: Optional[list] = None
-        self._summary_preview: Optional[dict] = None
-        self._trend_data_preview: Optional[dict] = None
-        self._trend_figure_preview: Optional[Any] = None
+        self.filter_service = FilterService(repository)
+        self.summary_service = SummaryService(repository)
+        self.trend_service = TrendService(repository)
+
+        self._filtered_rows = None
+        self._summary_preview = None
+        self._trend_data_preview = None
+        self._trend_figure_preview = None
 
     # ---------- Filter + Summary ----------
 
@@ -136,3 +133,7 @@ class AnalyseService:
 
         self.visualizer.export_figure(self._trend_figure_preview, path)
         self.logger.info("Exporting trend figure to %s", path)
+
+    def close(self):
+        self.repository.disconnect()
+

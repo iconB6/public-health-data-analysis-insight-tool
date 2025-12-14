@@ -66,7 +66,10 @@ def handle_analyse(args):
         visualizer=visualizer,
     )
 
-    analyse_repl(service)
+    try:
+        analyse_repl(service)
+    finally:
+        service.close()
 
 
 # ========== ANALYSE REPL ==========
@@ -92,7 +95,7 @@ def analyse_repl(service: AnalyseService):
                 service.run_filter(conditions={col: {op: val}})
 
             elif command == "summary":
-                service.run_summary()
+                service.run_filter()
 
             elif command == "trend":
                 # trend DATE VALUE mean
@@ -104,9 +107,13 @@ def analyse_repl(service: AnalyseService):
                     agg=agg,
                 )
 
-            elif command == "export":
-                target, path = parts[1], parts[2]
-                service.export(target, path)
+            elif command == "export_summary":
+                path = parts[1]
+                service.export_summary(path)
+            
+            elif command == "export_trend":
+                path = parts[1] 
+                service.export_trend(path)
 
             elif command == "exit":
                 print("Bye.")
@@ -128,8 +135,8 @@ Available commands:
   filter <COLUMN> <OP> <VALUE>
   summary
   trend <DATE_FIELD> <METRIC_FIELD> [AGG]
-  export summary <PATH>
-  export trend <PATH>
+  export_summary <PATH>
+  export_trend <PATH>
   exit
 """)
 

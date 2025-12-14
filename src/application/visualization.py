@@ -2,6 +2,8 @@ from typing import Dict, Any
 import csv
 import matplotlib.pyplot as plt
 from tabulate import tabulate
+from pathlib import Path
+
 
 
 class Visualizer:
@@ -19,29 +21,58 @@ class Visualizer:
         """
         rows = []
 
-        for key, value in summary.items():
-            if isinstance(value, dict):
-                for sub_k, sub_v in value.items():
-                    rows.append([f"{key}.{sub_k}", sub_v])
-            else:
-                rows.append([key, value])
+        # ---------- meta ----------
+        meta = summary.get("meta", {})
+        if "total_records" in meta:
+            rows.append(["Total records", meta["total_records"]])
 
-        print(tabulate(rows, headers=["Metric", "Value"], tablefmt="grid"))
+        # ---------- numeric ----------
+        numeric = summary.get("numeric", {})
+        for field, stats in numeric.items():
+            rows.append([f"{field}.min", stats.get("min")])
+            rows.append([f"{field}.max", stats.get("max")])
+            rows.append([f"{field}.mean", stats.get("mean")])
+
+        # ---------- categorical (preview only) ----------
+        categorical = summary.get("categorical", {})
+        for field, items in categorical.items():
+            rows.append([f"{field}.distinct", len(items)])
+
+        print(tabulate(rows, headers=["Metric", "Value"], tablefmt="simple"))
 
     def export_table(self, summary: Dict[str, Any], path: str):
         """
         Export summary as CSV.
         """
+        path = Path(path)
+        if path.suffix == "":
+            path = path.with_suffix(".csv")
+
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
-            writer.writerow(["metric", "value"])
+            writer.writerow(["section", "field", "metric", "value"])
 
-            for key, value in summary.items():
-                if isinstance(value, dict):
-                    for sub_k, sub_v in value.items():
-                        writer.writerow([f"{key}.{sub_k}", sub_v])
-                else:
-                    writer.writerow([key, value])
+            # ---------- meta ----------
+            meta = summary.get("meta", {})
+            for k, v in meta.items():
+                writer.writerow(["meta", "", k, v])
+
+            # ---------- numeric ----------
+            numeric = summary.get("numeric", {})
+            for field, stats in numeric.items():
+                for metric, value in stats.items():
+                    writer.writerow(["numeric", field, metric, value])
+
+            # ---------- categorical ----------
+            categorical = summary.get("categorical", {})
+            for field, items in categorical.items():
+                for item in items:
+                    writer.writerow([
+                        "categorical",
+                        field,
+                        item["value"],
+                        item["count"],
+                    ])
 
     # ---------- Trend ----------
 
