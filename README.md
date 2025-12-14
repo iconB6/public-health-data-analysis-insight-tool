@@ -1,187 +1,467 @@
-# public-health-data-analysis-insight-tool
-This is a Python-based data insights tool for a team of researchers analysing public health data (e.g., vaccination rates, disease outbreaks, or mental health reports).The goal is to support data access, filtering, cleaning, summarisation, and presentation
+下面是一份**完整、课程/项目级别的 README.md**，内容与你现在的架构与代码高度对齐，直接可用（可稍作删改）。
 
+---
 
-# 📦 Command-Line Interface (CLI)
+# Public Health Data Analysis Insight Tool
 
-This project includes a command-line interface for interacting with the full data pipeline:
+A modular, testable data analysis tool for importing, cleaning, storing, analysing, and visualising public health datasets.
+Designed with layered architecture, clear separation of concerns, and full unit/integration test coverage.
 
-**load → clean → store → filter → summarize → visualize**
+---
 
-The CLI entry point is:
+## 📌 Features
+
+### Data Import (ETL)
+
+* Load data from CSV (extensible to JSON / API / DB)
+* Clean and validate raw data
+* Store into SQLite (extensible to cloud databases)
+* Transaction-safe import pipeline
+
+### Data Analysis
+
+* **Filter Service**: flexible conditional filtering and date range queries
+* **Summary Service**: table-wide or filtered data summaries
+* **Trend Service**: time-series aggregation for visualisation
+* **Analysis Orchestration** via `AnalyseService`
+
+### Visualisation
+
+* Console preview tables
+* Trend preview figures
+* Deferred export (CSV / image)
+
+### CLI Interface
+
+* One-off import commands
+* Interactive analysis session (REPL-style)
+* Export on demand
+
+### Engineering Quality
+
+* Layered architecture (Application / Service / Infrastructure)
+* Repository & Factory patterns
+* Fully testable (FakeRepository + SQLite)
+* Centralised logging
+
+---
+
+## 🏗 Architecture Overview
+
+### High-Level Layers
 
 ```
-src/cli.py
-```
-
-Run any CLI command using:
-
-```
-python src/cli.py <command> [options]
+┌──────────────┐
+│     CLI      │
+└──────┬───────┘
+       ↓
+┌─────────────────────┐
+│ Application Layer   │
+│  - ImportPipeline   │
+│  - AnalyseService   │
+└──────┬──────────────┘
+       ↓
+┌─────────────────────┐
+│ Service Layer       │
+│  - FilterService    │
+│  - SummaryService   │
+│  - TrendService     │
+│  - Visualizer       │
+└──────┬──────────────┘
+       ↓
+┌─────────────────────┐
+│ Infrastructure      │
+│  - SQLiteRepository │
+│  - CSVLoader        │
+└─────────────────────┘
 ```
 
 ---
 
-# 🚀 Available CLI Commands
+## 📂 Project Structure
+
+```
+src/
+├── application/
+│   ├── analyse_service.py
+│   └── import_pipeline.py
+│
+├── service/
+│   ├── filter_service.py
+│   ├── summary_service.py
+│   ├── trend_service.py
+│   └── visualization.py
+│
+├── infrastructure/
+│   ├── sqlite_repository.py
+│   ├── data_loader_factory.py
+│   └── csv_loader.py
+│
+├── interface/
+│   ├── repository_interface.py
+│   └── data_loader_interface.py
+│
+├── utils/
+│   └── logger.py
+│
+├── run.py
+└── tests/
+    ├── units/
+    └── integration/
+```
 
 ---
 
-## **1. `load` — Load raw data**
+## 🚀 Usage
 
-Load data from a specified source type (e.g., CSV).
+# Command Line Interface (CLI) Guide
 
-### **Usage**
+This project provides a command-line interface via `run.py` for importing, analyzing, and exporting public health data.
+
+The CLI supports **two execution modes**:
+
+1. **One-shot commands**
+
+   * `import`: Load, clean, and store data into a database
+
+2. **Interactive session**
+
+   * `analyse`: Start an interactive analysis session (filtering, summary, trends, visualization)
+
+---
+
+## 1. Import Command (One-shot)
+
+### Command Syntax
 
 ```bash
-python src/cli.py load --type csv --path data/sample.csv
+python run.py import \
+  --source <SOURCE_TYPE> \
+  --path <SOURCE_PATH> \
+  --dbtype <DB_TYPE> \
+  --db-path <DB_PATH>
 ```
 
-### **Arguments**
+### Arguments
 
-| Flag     | Description                 |
-| -------- | --------------------------- |
-| `--type` | Loader type (`csv`, `json`) |
-| `--path` | Path to the raw data file   |
+| Argument    | Short | Required | Description                                 |
+| ----------- | ----- | -------- | ------------------------------------------- |
+| `--source`  | `-s`  | ✅        | Data source type (currently supports `csv`) |
+| `--path`    | `-p`  | ✅        | Path to the input data file                 |
+| `--dbtype`  | `-d`  | ❌        | Database type (default: `sqlite`)           |
+| `--db-path` | `-o`  | ✅        | Output database file path                   |
 
 ---
 
-## **2. `clean` — Clean a dataset**
-
-Applies the project’s data cleaning rules.
-
-### **Usage**
+### Example 1: Import CSV into SQLite
 
 ```bash
-python src/cli.py clean --input data/sample.csv --output data/cleaned.json
+python run.py import \
+  --source csv \
+  --path data/COV_VAC_UPTAKE_2024.csv \
+  --db-path data.db
 ```
 
-### **Arguments**
+**What happens internally:**
 
-| Flag       | Description                  |
-| ---------- | ---------------------------- |
-| `--input`  | Raw dataset path             |
-| `--output` | Output path for cleaned data |
+1. Load data from CSV
+2. Clean and normalize records
+3. Automatically infer schema and create table
+4. Insert records using a transaction
+5. Output the number of inserted rows
 
 ---
 
-## **3. `store` — Save cleaned data into storage**
-
-Stores cleaned data using the configured storage backend.
-
-### **Usage**
+### Example 2: Using Short Options
 
 ```bash
-python src/cli.py store --input data/cleaned.json --engine local
+python run.py import -s csv -p data/input.csv -o analysis.db
 ```
-
-### **Arguments**
-
-| Flag       | Description                         |
-| ---------- | ----------------------------------- |
-| `--input`  | Path to cleaned dataset             |
-| `--engine` | Storage backend (`local`, `memory`) |
 
 ---
 
-## **4. `summarize` — Compute summary statistics**
+## 2. Analyse Command (Interactive Session)
 
-Calculates count, mean, min, and max for a numeric metric.
-
-### **Usage**
+### Start an Analysis Session
 
 ```bash
-python src/cli.py summarize --input data/cleaned.json --metric value_1
+python run.py analyse --db-path data.db
 ```
 
-### **Arguments**
+You will enter an interactive REPL:
 
-| Flag       | Description             |
-| ---------- | ----------------------- |
-| `--input`  | Path to cleaned dataset |
-| `--metric` | Metric to summarize     |
+```text
+Enter analysis mode. Type 'help' for commands.
+analyse>
+```
 
 ---
 
-## **5. `trend` — Compute time-series trend (optionally visualize)**
+## 3. Analyse Session Commands
 
-Extracts a date-based trend from the dataset.
+### 3.1 `help` — Show Available Commands
 
-### **Usage**
-
-```bash
-python src/cli.py trend --input data/cleaned.json --date date --metric value_1 --plot
+```text
+analyse> help
 ```
 
-### **Arguments**
+Output:
 
-| Flag       | Description                             |
-| ---------- | --------------------------------------- |
-| `--input`  | Cleaned dataset path                    |
-| `--date`   | Date field in dimensions (`YYYY-MM-DD`) |
-| `--metric` | Numeric metric                          |
-| `--plot`   | (Optional) Show matplotlib line chart   |
+```text
+filter <COLUMN> <OP> <VALUE>
+summary
+trend <DATE_FIELD> <METRIC_FIELD> [AGG]
+export_summary <PATH>
+export_trend <PATH>
+exit
+```
 
 ---
 
-## **6. `group` — Group by a dimension**
+### 3.2 `filter` — Filter Records
 
-Groups records by a dimension and computes aggregated statistics.
+#### Syntax
 
-### **Usage**
-
-```bash
-python src/cli.py group --input data/cleaned.json --group country --metric value_1
+```text
+filter <COLUMN> <OP> <VALUE>
 ```
 
-### **Arguments**
+#### Supported Operators
 
-| Flag       | Description                     |
-| ---------- | ------------------------------- |
-| `--input`  | Path to cleaned dataset         |
-| `--group`  | Dimension key (`country`, etc.) |
-| `--metric` | Numeric metric                  |
+* **TEXT fields**
+
+  * `eq` (equals)
+  * `ne` (not equals)
+
+* **INTEGER / REAL fields**
+
+  * `eq`, `ne`
+  * `lt`, `lte`
+  * `gt`, `gte`
 
 ---
 
-## **7. `visualize-table` — Display formatted table**
+#### Example 3: Filter by Country
 
-Shows the dataset as a pandas DataFrame.
-
-### **Usage**
-
-```bash
-python src/cli.py visualize-table --input data/cleaned.json
+```text
+analyse> filter COUNTRY eq USA
 ```
 
-### **Arguments**
+Effect:
 
-| Flag      | Description       |
-| --------- | ----------------- |
-| `--input` | Path to data file |
+* Query database with condition
+* Cache filtered rows in memory
+* Automatically generate and display a **summary preview**
 
 ---
 
-# 🧩 Example Full Workflow
+#### Example 4: Numeric Filtering
+
+```text
+analyse> filter VALUE gt 100
+```
+
+---
+
+### 3.3 `summary` — Generate Summary Preview
+
+```text
+analyse> summary
+```
+
+Behavior:
+
+* If `filter` was previously executed
+  → summarize filtered rows
+* If no filter exists
+  → summarize the entire table
+
+Summary includes:
+
+* Total record count
+* Value distributions for categorical fields
+* Min / max / mean for numeric fields
+
+The summary is:
+
+* Printed to the console
+* Stored as the **latest summary preview**
+
+---
+
+### 3.4 `trend` — Time Series Trend Analysis
+
+#### Syntax
+
+```text
+trend <DATE_FIELD> <METRIC_FIELD> [AGG]
+```
+
+* `AGG` is optional (default: `count`)
+* Supported aggregations:
+
+  * `count`
+  * `sum`
+  * `mean`
+
+---
+
+#### Example 5: Count Trend Over Time
+
+```text
+analyse> trend DATE VALUE
+```
+
+Equivalent to:
+
+```text
+analyse> trend DATE VALUE count
+```
+
+---
+
+#### Example 6: Mean Trend Over Time
+
+```text
+analyse> trend DATE VALUE mean
+```
+
+Effect:
+
+* Fetch data from the database (filtered or full)
+* Compute trend values
+* Display trend plot preview
+* Cache the **latest trend preview**
+
+---
+
+### 3.5 `export_summary` — Export Summary as CSV
+
+```text
+analyse> export_summary output/summary.csv
+```
+
+Notes:
+
+* Exports the **most recent summary preview**
+* If the file extension is missing, the file is still written in CSV format
+
+---
+
+### 3.6 `export_trend` — Export Trend Figure
+
+```text
+analyse> export_trend output/trend.png
+```
+
+Notes:
+
+* Exports the **most recent trend preview**
+* Image format is determined by file extension
+
+---
+
+### 3.7 `exit` — Exit the Session
+
+```text
+analyse> exit
+```
+
+---
+
+## 4. Complete Example Workflow
+
+```text
+$ python run.py analyse -o data.db
+
+analyse> filter COUNTRY eq USA
+# summary preview displayed
+
+analyse> trend DATE VALUE mean
+# trend figure preview displayed
+
+analyse> export_summary results/usa_summary.csv
+analyse> export_trend results/usa_trend.png
+
+analyse> exit
+```
+
+---
+
+## 5. CLI Design Notes
+
+* Import and analysis responsibilities are strictly separated
+* Import is a stateless, one-shot operation
+* Analysis is a stateful interactive session
+* Summary and trend support:
+
+  * preview first
+  * export on demand
+* CLI only coordinates commands; all logic lives in service layers
+
+---
+
+If you want, I can also help you:
+
+* Write a **concise academic-style README**
+* Add **end-to-end CLI test cases**
+* Prepare a **design justification section** for coursework submission
+
+Your CLI architecture is already very close to a real-world data analysis tool.
+
+
+---
+
+## 🧪 Testing
+
+### Unit Tests
+
+* Service-level logic
+* FakeRepository for IO-free testing
+* Type validation & edge cases
+
+### Integration Tests
+
+* Full import → analyse → export flows
+* Real SQLiteRepository
+* CLI-driven behaviour
+
+Run all tests:
 
 ```bash
-# Load raw CSV
-python src/cli.py load --type csv --path data/sample.csv
-
-# Clean it
-python src/cli.py clean --input data/sample.csv --output data/cleaned.json
-
-# Store results
-python src/cli.py store --input data/cleaned.json --engine local
-
-# Summary statistics
-python src/cli.py summarize --input data/cleaned.json --metric value_1
-
-# Time trend (with plotting)
-python src/cli.py trend --input data/cleaned.json --date date --metric value_1 --plot
-
-# Group by dimension
-python src/cli.py group --input data/cleaned.json --group country --metric value_1
-
-# Show formatted table
-python src/cli.py visualize-table --input data/cleaned.json
+pytest
 ```
+
+---
+
+## 🪵 Logging
+
+* Central logger via `get_logger`
+* Integrated into:
+
+  * ImportPipeline
+  * Filter / Summary / Trend
+  * AnalyseService
+* Logs can be redirected to file for audit/debugging
+
+---
+
+## 🧠 Design Principles
+
+* **Separation of concerns**
+* **Dependency inversion**
+* **Explicit data flow**
+* **Testability first**
+* **Future extensibility** (cloud DB, frontend, APIs)
+
+---
+
+## 🔮 Future Extensions
+
+* Cloud database repositories (PostgreSQL / BigQuery)
+* REST API / Frontend dashboard
+* Streaming data sources
+* Advanced analytics (forecasting, anomaly detection)
+
+---
+
