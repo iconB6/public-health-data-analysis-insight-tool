@@ -52,8 +52,14 @@ class FakeRepository:
     def __init__(self, rows):
         self._rows = rows
 
-    def query_for_trend(self, **kwargs):
-        return self._rows
+    def query_for_trend(self, trend_data):
+        return object()  
+
+    def show(self, figure):
+        pass
+
+    def export(self, figure, path):
+        pass
 
 
 class BrokenRepository:

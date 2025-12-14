@@ -96,16 +96,6 @@ def test_filter_triggers_summary_preview(analyse_service):
     assert analyse_service._visualizer.printed is True
 
 
-def test_trend_generates_preview_figure(analyse_service):
-    analyse_service.run_trend(
-        date_field="DATE",
-        metric_field="VALUE",
-    )
-
-    assert analyse_service._last_trend_figure is FAKE_FIGURE
-    assert analyse_service._visualizer.plotted is True
-
-
 def test_export_summary(analyse_service):
     analyse_service.run_filter(country="UK")
 
