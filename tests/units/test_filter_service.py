@@ -1,4 +1,4 @@
-from datetime import date
+import datetime
 import pytest
 
 from src.service.filter_service import FilterService
@@ -7,8 +7,8 @@ from src.interface.repository_interface import IRepository
 '''
 FilterService requirements:
 - Service-layer only; no SQL or DB-specific code.
-- Uses IDataRepository for all data access.
-- filter() accepts table name and optional filters.
+- Uses IRepository for all data access.
+- filter() accepts optional filters.
 - Returns List[Dict[str, Any]].
 - Caches latest results in memory.
 - get_cached_results() returns last result.
@@ -16,130 +16,102 @@ FilterService requirements:
 - Repository exceptions propagate.
 '''
 
-# ========== TEST DATA ==========
-TABLE_NAME = "records"
-
-DATASET = [
-    {"country": "UK", "date": "2020-01-01", "value": 100},
-    {"country": "UK", "date": "2021-01-01", "value": 200},
-    {"country": "US", "date": "2020-01-01", "value": 300},
-]
-
-
-# ========= EXPECTED RESULTS ==========
-UK_ONLY = [
-    {"country": "UK", "date": "2020-01-01", "value": 100},
-    {"country": "UK", "date": "2021-01-01", "value": 200},
-]
-
-UK_2020_ONLY = [
-    {"country": "UK", "date": "2020-01-01", "value": 100},
-]
-
-
-# ========= FIXTURES ==========
 class FakeRepository(IRepository):
-    def __init__(self, data):
-        self.data = data
+    def __init__(self, rows, schema):
+        self.rows = rows
+        self.schema = schema
         self.last_query = None
 
-    def query(self, table, filters, start_date=None, end_date=None):
+    def query(self, *, date_from=None, date_to=None, conditions=None):
         self.last_query = {
-            "table": table,
-            "filters": filters,
-            "start_date": start_date,
-            "end_date": end_date,
+            "date_from": date_from,
+            "date_to": date_to,
+            "conditions": conditions,
         }
+        return self.rows
 
-        results = self.data
-
-        if "country" in filters:
-            results = [r for r in results if r["country"] == filters["country"]]
-
-        if start_date:
-            results = [r for r in results if r["date"] >= start_date.isoformat()]
-
-        if end_date:
-            results = [r for r in results if r["date"] <= end_date.isoformat()]
-
-        return results
-
-@pytest.fixture
-def repository():
-    return FakeRepository(DATASET)
+    # unused methods (empty implementations)
+    def connect(self): pass
+    def disconnect(self): pass
+    def begin(self): pass
+    def commit(self): pass
+    def rollback(self): pass
+    def ensure_table(self, table, schema): pass
+    def insert_rows(self, table, rows): pass
+    def get_schema(self, table): return self.schema
 
 
-@pytest.fixture
-def filter_service(repository):
-    return FilterService(repository)
+# ========== TEST DATA ==========
+
+SCHEMA = {
+    "COUNTRY": "TEXT",
+    "AGE": "INTEGER",
+    "SCORE": "REAL",
+    "DATE": "TEXT",
+}
+
+ROWS = [
+    {"COUNTRY": "USA", "AGE": 20, "SCORE": 88.5, "DATE": "2024-01-01"}
+]
+
 
 # ========== Normal cases ==========
-def test_filter_by_country(filter_service):
-    results = filter_service.filter(
-        table=TABLE_NAME,
-        country="UK"
+
+def test_filter_numeric_and_text_conditions():
+    repo = FakeRepository(ROWS, SCHEMA)
+    service = FilterService(repo)
+
+    result = service.filter(
+        date_from=datetime.date(2024, 1, 1),
+        conditions={
+            "COUNTRY": {"eq": "USA"},
+            "AGE": {"gt": 18},
+        }
     )
 
-    assert results == UK_ONLY
-
-def test_filter_by_country_and_date_range(filter_service):
-    results = filter_service.filter(
-        table=TABLE_NAME,
-        country="UK",
-        start_date=date(2020, 1, 1),
-        end_date=date(2020, 12, 31),
-    )
-
-    assert results == UK_2020_ONLY
+    assert result == ROWS
+    assert repo.last_query["conditions"]["AGE"]["gt"] == 18
 
 
 # ========== Edge cases ==========
-def test_filter_without_any_conditions(filter_service):
-    results = filter_service.filter(table=TABLE_NAME)
-    assert results == DATASET
 
-def test_filter_returns_empty_list(filter_service):
-    results = filter_service.filter(
-        table=TABLE_NAME,
-        country="CN"
-    )
+def test_filter_empty_result():
+    repo = FakeRepository([], SCHEMA)
+    service = FilterService(repo)
 
-    assert results == []
+    result = service.filter(conditions={"AGE": {"gt": 100}})
+    assert result == []
 
-def test_cached_results_after_filter(filter_service):
-    filter_service.filter(
-        table=TABLE_NAME,
-        country="UK"
-    )
 
-    cached = filter_service.get_cached_results()
-    assert cached == UK_ONLY
+def test_cached_results():
+    repo = FakeRepository(ROWS, SCHEMA)
+    service = FilterService(repo)
+
+    service.filter(conditions={"AGE": {"gt": 18}})
+    assert service.get_cached_results() == ROWS
+
 
 # ========== Invalid cases ==========
-def test_filter_with_invalid_table_type(filter_service):
+
+def test_invalid_operator_for_text_column():
+    repo = FakeRepository(ROWS, SCHEMA)
+    service = FilterService(repo)
+
+    with pytest.raises(ValueError):
+        service.filter(conditions={"COUNTRY": {"gt": "USA"}})
+
+
+def test_unknown_column():
+    repo = FakeRepository(ROWS, SCHEMA)
+    service = FilterService(repo)
+
+    with pytest.raises(ValueError):
+        service.filter(conditions={"UNKNOWN": {"eq": 1}})
+
+
+def test_invalid_date_type():
+    repo = FakeRepository(ROWS, SCHEMA)
+    service = FilterService(repo)
+
     with pytest.raises(TypeError):
-        filter_service.filter(
-            table=None,   # type: ignore
-            country="UK"
-        )
-
-def test_filter_with_invalid_date_type(filter_service):
-    with pytest.raises(AttributeError):
-        filter_service.filter(
-            table=TABLE_NAME,
-            start_date="2020-01-01"  # type: ignore
-        )
-
-
-# ========== Exception cases ==========
-class BrokenRepository(IRepository):
-    def query(self, *args, **kwargs):
-        raise RuntimeError("DB error")
-
-
-def test_repository_exception_propagates():
-    service = FilterService(BrokenRepository())
-
-    with pytest.raises(RuntimeError):
-        service.filter(table=TABLE_NAME)
-
+        service.filter(date_from="2024-01-01")

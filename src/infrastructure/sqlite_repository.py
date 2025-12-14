@@ -154,30 +154,48 @@ class SQLiteRepository(IRepository):
     # ======== query ===========
     def query(
         self,
-        table: str,
-        filters: Dict[str, Any],
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        *,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        conditions: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
 
-        sql = f"SELECT * FROM {table} WHERE 1=1"
+        sql = f"SELECT * FROM {self.TABLE}"
+        where_clauses = []
         params = []
 
-        for key, value in filters.items():
-            sql += f" AND {key} = ?"
-            params.append(value)
+        if date_from:
+            where_clauses.append("DATE >= ?")
+            params.append(str(date_from))
 
-        if start_date:
-            sql += " AND date >= ?"
-            params.append(start_date.isoformat())
+        if date_to:
+            where_clauses.append("DATE <= ?")
+            params.append(str(date_to))
 
-        if end_date:
-            sql += " AND date <= ?"
-            params.append(end_date.isoformat())
+        if conditions:
+            for col, ops in conditions.items():
+                for op, val in ops.items():
+                    if op == "eq":
+                        where_clauses.append(f"{col} = ?")
+                    elif op == "ne":
+                        where_clauses.append(f"{col} != ?")
+                    elif op == "gt":
+                        where_clauses.append(f"{col} > ?")
+                    elif op == "gte":
+                        where_clauses.append(f"{col} >= ?")
+                    elif op == "lt":
+                        where_clauses.append(f"{col} < ?")
+                    elif op == "lte":
+                        where_clauses.append(f"{col} <= ?")
+                    else:
+                        raise ValueError(f"Unsupported operator: {op}")
+                    params.append(val)
 
-        with sqlite3.connect(self._db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            cursor = conn.execute(sql, params)
-            rows = cursor.fetchall()
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
 
-        return [dict(row) for row in rows]
+        cur = self.conn.cursor()
+        cur.execute(sql, params)
+
+        columns = [c[0] for c in cur.description]
+        return [dict(zip(columns, row)) for row in cur.fetchall()]

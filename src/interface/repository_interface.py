@@ -45,15 +45,9 @@ class IRepository(ABC):
     @abstractmethod
     def query(
         self,
-        table: str,
-        filters: Dict[str, Any],
-        start_date: Optional[date] = None,
-        end_date: Optional[date] = None,
+        *,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        conditions: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
-        """
-        Generic query interface.
-
-        Returns:
-            List of rows as dicts
-        """
         pass
