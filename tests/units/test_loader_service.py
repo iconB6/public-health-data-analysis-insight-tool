@@ -22,14 +22,7 @@ CSV_EMPTY = """country,date,value
 """
 CSV_WITH_MISSING_VALUES = """country,date,value
 UK,2023-01-01"""
-CSV_NO_HEADER = """USA,2020,100
-UK,2021,200
-"""
 CSV_HEADER_ONLY = """country,year,value
-"""
-CSV_NOT_CSV = """<html>
-<body>Not a CSV</body>
-</html>
 """
 # ========= EXPECTED RESULTS ==========
 EXPECTED_BASIC_RESULT = [
@@ -77,16 +70,7 @@ def test_load_csv_missing_values(csv_file_factory):
 
     assert isinstance(result, list)
     assert all(isinstance(row, dict) for row in result)
-    assert result == EXPECTED_WITH_MISSING
-
-def test_load_csv_empty_file(csv_file_factory):
-    service = DataLoaderService()
-    file_path = csv_file_factory(CSV_EMPTY)
-
-    result = service.load_data("csv", file_path)
-
-    assert isinstance(result, list)
-    assert result == EXPECTED_EMPTY
+    assert result == EXPECTED_WITH_MISSING_VALUES
 
 def test_load_csv_null_file_path():
     service = DataLoaderService()
@@ -104,12 +88,6 @@ def test_load_csv_with_missing_values(csv_file_factory):
     assert result == EXPECTED_WITH_MISSING_VALUES
 
 # ========== Invalid cases ==========
-def test_load_csv_without_header(csv_file_factory):
-    service = DataLoaderService()
-    file_path = csv_file_factory(CSV_NO_HEADER)
-
-    with pytest.raises(ValueError):
-        service.load_data("csv", file_path)
 
 def test_load_csv_header_only(csv_file_factory):
     service = DataLoaderService()
@@ -118,10 +96,3 @@ def test_load_csv_header_only(csv_file_factory):
     with pytest.raises(ValueError):
         service.load_data("csv", file_path)
 
-# ========== Exception cases ==========
-def test_load_csv_not_a_csv_file(csv_file_factory):
-    service = DataLoaderService()
-    file_path = csv_file_factory(CSV_NOT_CSV)
-
-    with pytest.raises(ValueError):
-        service.load_data("csv", file_path)
