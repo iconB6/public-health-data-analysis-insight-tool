@@ -1,6 +1,6 @@
 from typing import List, Dict, Any, Optional
 import datetime
-
+from src.utils.logger import get_logger
 from src.interface.repository_interface import IRepository
 
 
@@ -10,6 +10,7 @@ class FilterService:
     NUMERIC_OPS = {"eq", "ne", "gt", "gte", "lt", "lte"}
 
     def __init__(self, repository: IRepository):
+        self.logger = get_logger(self.__class__.__name__)
         self._repo = repository
         self._cache: List[Dict[str, Any]] = []
 
@@ -22,11 +23,17 @@ class FilterService:
     ) -> List[Dict[str, Any]]:
 
         if date_from and not isinstance(date_from, datetime.date):
+            self.logger.error("Invalid date_from type: %s", type(date_from))
             raise TypeError("date_from must be datetime.date")
 
         if date_to and not isinstance(date_to, datetime.date):
+            self.logger.error("Invalid date_to type: %s", type(date_to))
             raise TypeError("date_to must be datetime.date")
-
+        
+        self.logger.debug(
+            "Calling repository.query with conditions=%s",
+            conditions
+        )
         schema = self._repo.get_schema("records")
 
         if conditions:
@@ -52,6 +59,7 @@ class FilterService:
         )
 
         self._cache = list(result)
+        self.logger.info("FilterService returned %d rows", len(result))
         return result
 
     def get_cached_results(self) -> List[Dict[str, Any]]:

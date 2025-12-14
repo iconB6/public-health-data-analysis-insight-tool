@@ -1,12 +1,14 @@
 import datetime
 from collections import defaultdict
 from typing import Any, Dict, Optional
+from src.utils.logger import get_logger
 
 
 class TrendService:
 
     def __init__(self, repository):
         self._repo = repository
+        self.logger = get_logger(self.__class__.__name__)
 
     def trend_over_time(
         self,
@@ -18,6 +20,11 @@ class TrendService:
         date_to=None,
         conditions=None,
     ) -> dict:
+        
+        self.logger.info(
+            "Computing trend over time: %s (%s)",
+            metric_field, agg
+        )
 
         
         # ---------- validation ----------
@@ -40,6 +47,7 @@ class TrendService:
 
 
         if not rows:
+            self.logger.warning("Trend query returned no rows")
             return {
                 "date": [],
                 "value": [],
