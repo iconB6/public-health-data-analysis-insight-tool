@@ -51,3 +51,14 @@ class IRepository(ABC):
         conditions: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         pass
+
+    def query_for_trend(
+        self,
+        *,
+        date_field: str,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        conditions: Optional[Dict[str, Dict[str, Any]]] = None,
+    ) -> List[Dict[str, Any]]:
+        pass
+

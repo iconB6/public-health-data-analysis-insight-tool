@@ -199,3 +199,52 @@ class SQLiteRepository(IRepository):
 
         columns = [c[0] for c in cur.description]
         return [dict(zip(columns, row)) for row in cur.fetchall()]
+    
+    def query_for_trend(
+    self,
+    *,
+    date_field: str,
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+    conditions: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> List[Dict[str, Any]]:
+
+        sql = f"SELECT * FROM {self.TABLE}"
+        where_clauses = []
+        params = []
+
+        if date_from:
+            where_clauses.append(f"{date_field} >= ?")
+            params.append(str(date_from))
+
+        if date_to:
+            where_clauses.append(f"{date_field} <= ?")
+            params.append(str(date_to))
+
+        if conditions:
+            for col, ops in conditions.items():
+                for op, val in ops.items():
+                    if op == "eq":
+                        where_clauses.append(f"{col} = ?")
+                    elif op == "ne":
+                        where_clauses.append(f"{col} != ?")
+                    elif op == "gt":
+                        where_clauses.append(f"{col} > ?")
+                    elif op == "gte":
+                        where_clauses.append(f"{col} >= ?")
+                    elif op == "lt":
+                        where_clauses.append(f"{col} < ?")
+                    elif op == "lte":
+                        where_clauses.append(f"{col} <= ?")
+                    else:
+                        raise ValueError(f"Unsupported operator: {op}")
+                    params.append(val)
+
+        if where_clauses:
+            sql += " WHERE " + " AND ".join(where_clauses)
+
+        cur = self.conn.cursor()
+        cur.execute(sql, params)
+
+        columns = [c[0] for c in cur.description]
+        return [dict(zip(columns, row)) for row in cur.fetchall()]
