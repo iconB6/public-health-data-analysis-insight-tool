@@ -1,7 +1,9 @@
 import pytest
 import sqlite3
 import datetime
+
 from src.service.storage_service import DataStorageService
+from src.infrastructure.sqlite_repository import SQLiteRepository
 
 '''
 DataStorageService should:
@@ -60,7 +62,8 @@ def db_path(tmp_path):
 
 @pytest.fixture
 def storage_service(db_path):
-    service = DataStorageService(str(db_path))
+    repo = SQLiteRepository(str(db_path))
+    service = DataStorageService(repo)
     service.connect()
     yield service
     try:
@@ -72,20 +75,22 @@ def storage_service(db_path):
 def get_schema(db_path, table="records"):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
-    cur.execute(f"PRAGMA table_info({table});")
+    cur.execute(f'PRAGMA table_info("{table}");')
     schema = {row[1]: row[2].upper() for row in cur.fetchall()}
     conn.close()
     return schema
 
 
-def get_row_count(db_path, table="records"):
+def table_exists(db_path, table="records"):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
-    cur.execute(f"SELECT COUNT(*) FROM {table};")
-    count = cur.fetchone()[0]
+    cur.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name=?;",
+        (table,)
+    )
+    exists = cur.fetchone() is not None
     conn.close()
-    return count
-
+    return exists
 
 # ========== Normal cases ==========
 
@@ -142,7 +147,6 @@ def test_storage_all_null_column_not_created(storage_service, db_path):
     with storage_service.transaction():
         inserted = storage_service.save_full_record(ROWS_ALL_NULL_COLUMN)
 
-    # rows are empty after clean → nothing to insert
     assert inserted == 0
 
 
@@ -170,5 +174,4 @@ def test_storage_transaction_rollback(storage_service, db_path):
             raise RuntimeError("force rollback")
 
     # rollback must keep table empty
-    assert get_row_count(db_path) == 0
-
+    assert not table_exists(db_path)
