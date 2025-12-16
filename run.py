@@ -90,21 +90,94 @@ def analyse_repl(service: AnalyseService):
                 print_help()
 
             elif command == "filter":
-                # filter COUNTRY eq USA
-                col, op, val = parts[1], parts[2], parts[3]
-                service.run_filter(conditions={col: {op: val}})
+                # filter COUNTRY eq AND
+                from datetime import datetime
+
+                date_from = None
+                date_to = None
+                conditions = {}
+
+                i = 1
+                while i < len(parts):
+                    if parts[i] == "--from":
+                        date_from = datetime.strptime(parts[i + 1], "%Y-%m-%d").date()
+                        i += 2
+                    elif parts[i] == "--to":
+                        date_to = datetime.strptime(parts[i + 1], "%Y-%m-%d").date()
+                        i += 2
+                    else:
+                        # parse condition: COLUMN OP VALUE
+                        if i + 2 >= len(parts):
+                            raise ValueError("Invalid filter condition format")
+
+                        col = parts[i]
+                        op = parts[i + 1]
+                        val = parts[i + 2]
+
+                        conditions.setdefault(col, {})[op] = val
+                        i += 3
+
+                service.run_filter(
+                    date_from=date_from,
+                    date_to=date_to,
+                    conditions=conditions if conditions else None,
+                )
 
             elif command == "summary":
                 service.run_filter()
 
             elif command == "trend":
-                # trend DATE VALUE mean
-                date_field, metric_field = parts[1], parts[2]
-                agg = parts[3] if len(parts) > 3 else "count"
+                """
+                trend DATE VALUE
+                    [agg=mean]
+                    [from=YYYY-MM-DD]
+                    [to=YYYY-MM-DD]
+                    [where COL OP VAL ...]
+                """
+
+                date_field = parts[1]
+                metric_field = parts[2]
+
+                agg = "count"
+                date_from = None
+                date_to = None
+                conditions = {}
+
+                i = 3
+                while i < len(parts):
+                    token = parts[i]
+
+                    if token.startswith("agg="):
+                        agg = token.split("=", 1)[1]
+
+                    elif token.startswith("from="):
+                        date_from = token.split("=", 1)[1]
+
+                    elif token.startswith("to="):
+                        date_to = token.split("=", 1)[1]
+
+                    elif token == "where":
+                        i += 1
+                        while i + 2 < len(parts):
+                            col = parts[i]
+                            op = parts[i + 1]
+                            val = parts[i + 2]
+                            conditions.setdefault(col, {})[op] = val
+                            i += 3
+                        break
+
+                    else:
+                        raise ValueError(f"Unknown trend option: {token}")
+
+                    i += 1
+
                 service.run_trend(
                     date_field=date_field,
                     metric_field=metric_field,
                     agg=agg,
+                    date_from=date_from,
+                    date_to=date_to,
+                    conditions=conditions or None,
                 )
 
             elif command == "export_summary":
@@ -132,7 +205,7 @@ def analyse_repl(service: AnalyseService):
 def print_help():
     print("""
 Available commands:
-  filter <COLUMN> <OP> <VALUE>
+  filter [--from YYYY-MM-DD] [--to YYYY-MM-DD] COLUMN OP VALUE [COLUMN OP VALUE ...]
   summary
   trend <DATE_FIELD> <METRIC_FIELD> [AGG]
   export_summary <PATH>

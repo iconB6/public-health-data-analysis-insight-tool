@@ -21,6 +21,10 @@ class SQLiteRepository(IRepository):
             self.conn.close()
             self.conn = None
     
+    # ========== helper ==========
+    def _quote(self, identifier: str) -> str:
+        return f'"{identifier}"'
+
     # ========== transaction ==========
     
     def begin(self):
@@ -175,6 +179,7 @@ class SQLiteRepository(IRepository):
 
         if conditions:
             for col, ops in conditions.items():
+                col = self._quote(col)
                 for op, val in ops.items():
                     if op == "eq":
                         where_clauses.append(f"{col} = ?")
@@ -224,6 +229,7 @@ class SQLiteRepository(IRepository):
 
         if conditions:
             for col, ops in conditions.items():
+                col = self._quote(col)
                 for op, val in ops.items():
                     if op == "eq":
                         where_clauses.append(f"{col} = ?")
