@@ -3,6 +3,7 @@ import csv
 import matplotlib.pyplot as plt
 from tabulate import tabulate
 from pathlib import Path
+import os
 
 
 
@@ -44,9 +45,15 @@ class Visualizer:
         """
         Export summary as CSV.
         """
+        # ensure .csv suffix
         path = Path(path)
         if path.suffix == "":
             path = path.with_suffix(".csv")
+
+        # ensure directory exists
+        dir_path = os.path.dirname(path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
 
         with open(path, "w", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
@@ -104,4 +111,10 @@ class Visualizer:
         """
         Export figure to file (png / pdf / etc).
         """
+        if not path.lower().endswith(".png"):
+            path += ".png"
+
+        dir_path = os.path.dirname(path)
+        if dir_path:
+            os.makedirs(dir_path, exist_ok=True)
         figure.savefig(path, bbox_inches="tight")

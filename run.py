@@ -5,6 +5,7 @@ from src.application.analyse_service import AnalyseService
 from src.infrastructure.sqlite_repository import SQLiteRepository
 from src.application.visualization import Visualizer
 from src.utils.logger import get_logger
+import os
 
 logger = get_logger("CLI")
 
@@ -55,6 +56,11 @@ def handle_analyse(args):
     logger.info("Starting analysis session")
 
     if args.dbtype == "sqlite":
+        if not os.path.exists(args.db_path):
+            raise FileNotFoundError(
+                f"Database file not found: {args.db_path}. "
+                f"Please run the import command first."
+            )
         repository = SQLiteRepository(args.db_path)
     else:
         raise ValueError(f"Unsupported db type: {args.dbtype}")
@@ -207,7 +213,10 @@ def print_help():
 Available commands:
   filter [--from YYYY-MM-DD] [--to YYYY-MM-DD] COLUMN OP VALUE [COLUMN OP VALUE ...]
   summary
-  trend <DATE_FIELD> <METRIC_FIELD> [AGG]
+  trend DATE VALUE  [agg=mean]
+                    [from=YYYY-MM-DD]
+                    [to=YYYY-MM-DD]
+                    [where COL OP VAL ...]
   export_summary <PATH>
   export_trend <PATH>
   exit
