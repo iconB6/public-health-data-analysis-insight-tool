@@ -66,6 +66,23 @@ def test_export_figure_creates_file(tmp_path, visualizer):
     visualizer.export_figure(fig, str(path))
     assert path.exists()
 
+def test_export_table_creates_parent_dirs(tmp_path, visualizer):
+    path = tmp_path / "not_exist_dir" / "summary.csv"
+
+    visualizer.export_table(SUMMARY_DATA, str(path))
+
+    assert path.exists()
+    assert path.is_file()
+
+def test_export_figure_creates_parent_dirs(tmp_path, visualizer):
+    fig = visualizer.plot_trend(TREND_DATA)
+    path = tmp_path / "not_exist_dir" / "trend.png"
+
+    visualizer.export_figure(fig, str(path))
+
+    assert path.exists()
+    assert path.is_file()
+
 # ========== Invalid cases ==========
 
 def test_print_table_invalid_type(visualizer):
@@ -78,13 +95,3 @@ def test_plot_trend_missing_keys(visualizer):
         visualizer.plot_trend({"date": [], "value_missing": []})
 
 # ========== Exception cases ==========
-
-def test_export_table_invalid_path(visualizer):
-    with pytest.raises(Exception):
-        visualizer.export_table(SUMMARY_DATA, "/invalid/path/out.csv")
-
-
-def test_export_figure_invalid_path(visualizer):
-    fig = visualizer.plot_trend(TREND_DATA)
-    with pytest.raises(Exception):
-        visualizer.export_figure(fig, "/invalid/path/out.png")

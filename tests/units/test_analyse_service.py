@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
+from datetime import date
 
 '''
 AnalyseService tests verify:
@@ -13,24 +14,27 @@ AnalyseService tests verify:
 # ========== FIXTURES ==========
 
 @pytest.fixture
-def filter_service():
-    svc = MagicMock()
-    svc.filter.return_value = [{"A": 1}]
-    return svc
+def fake_repository():
+    repo = MagicMock()
 
+    # for filter / summary
+    repo.query.return_value = [
+        {"DATE": date(2020, 1, 1), "VALUE": 1},
+        {"DATE": date(2020, 1, 2), "VALUE": 2},
+    ]
 
-@pytest.fixture
-def summary_service():
-    svc = MagicMock()
-    svc.summarize.return_value = {"total_count": 1}
-    return svc
+    repo.get_schema.return_value = {
+        "DATE": "TEXT",
+        "VALUE": "INTEGER",
+    }
 
+    # for trend
+    repo.query_for_trend.return_value = [
+        {"DATE": date(2020, 1, 1), "VALUE": 1},
+        {"DATE": date(2020, 1, 2), "VALUE": 2},
+    ]
 
-@pytest.fixture
-def trend_service():
-    svc = MagicMock()
-    svc.generate.return_value = {"date": [], "value": []}
-    return svc
+    return repo
 
 
 @pytest.fixture
@@ -41,46 +45,55 @@ def visualizer():
 
 
 @pytest.fixture
-def analyse_service(filter_service, summary_service, trend_service, visualizer):
+def analyse_service(fake_repository, visualizer):
     from src.application.analyse_service import AnalyseService
 
     return AnalyseService(
-        filter_service=filter_service,
-        summary_service=summary_service,
-        trend_service=trend_service,
+        repository=fake_repository,
         visualizer=visualizer,
     )
+
 
 # ========== Normal cases ==========
 
 def test_filter_triggers_summary_preview(analyse_service, visualizer):
     rows = analyse_service.run_filter()
 
-    assert rows == [{"A": 1}]
-    visualizer.print_table.assert_called_once_with({"total_count": 1})
-
+    assert len(rows) == 2
+    assert analyse_service._summary_preview["meta"]["total_records"] == 2
+    visualizer.print_table.assert_called_once()
 
 
 # ========== State management cases ==========
 
-def test_only_latest_summary_is_kept(analyse_service):
+def test_only_latest_summary_is_kept(analyse_service, fake_repository):
     analyse_service.run_filter()
     first = analyse_service._summary_preview
 
-    analyse_service.summary_service.summarize.return_value = {"total_count": 2}
+    fake_repository.query.return_value = [
+        {"DATE": date(2020, 1, 1), "VALUE": 10},
+    ]
+
     analyse_service.run_filter()
     second = analyse_service._summary_preview
 
-    assert first != second
+    assert first is not second
+    assert second["meta"]["total_records"] == 1
 
 
 def test_only_latest_trend_is_kept(analyse_service, visualizer):
     visualizer.plot_trend.side_effect = [object(), object()]
 
-    analyse_service.run_trend(date_field="DATE",metric_field="VALUE")
+    analyse_service.run_trend(
+        date_field="DATE",
+        metric_field="VALUE",
+    )
     first = analyse_service._trend_figure_preview
 
-    analyse_service.run_trend(date_field="DATE",metric_field="VALUE")
+    analyse_service.run_trend(
+        date_field="DATE",
+        metric_field="VALUE",
+    )
     second = analyse_service._trend_figure_preview
 
     assert first is not second
@@ -94,9 +107,32 @@ def test_export_summary_uses_latest_preview(analyse_service, visualizer):
     analyse_service.export_summary("out.csv")
 
     visualizer.export_table.assert_called_once_with(
-        {"total_count": 1}, "out.csv"
+        analyse_service._summary_preview,
+        "out.csv",
     )
 
 
 def test_export_trend_uses_latest_preview(analyse_service, visualizer):
-    analyse_service.run_trend(date_field="DATE", metric_field="VALUE")
+    analyse_service.run_trend(
+        date_field="DATE",
+        metric_field="VALUE",
+    )
+
+    analyse_service.export_trend("out.png")
+
+    visualizer.export_figure.assert_called_once_with(
+        analyse_service._trend_figure_preview,
+        "out.png",
+    )
+
+
+# ========== Exception cases ==========
+
+def test_export_summary_without_preview_raises(analyse_service):
+    with pytest.raises(RuntimeError):
+        analyse_service.export_summary("out.csv")
+
+
+def test_export_trend_without_preview_raises(analyse_service):
+    with pytest.raises(RuntimeError):
+        analyse_service.export_trend("out.png")

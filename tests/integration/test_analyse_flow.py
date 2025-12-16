@@ -81,11 +81,10 @@ def analyse_service(tmp_path: Path):
     visualizer = SpyVisualizer()
 
     service = AnalyseService(
-        filter_service=FilterService(repo),
-        summary_service=SummaryService(repo),
-        trend_service=TrendService(repo),
+        repository=repo,
         visualizer=visualizer,
     )
+
 
     return service, visualizer
 
