@@ -162,7 +162,7 @@ python run.py import \
 python run.py import \
   --source csv \
   --path data/COV_VAC_UPTAKE_2024.csv \
-  --db-path data.db
+  --db-path analysis.db
 ```
 
 **What happens internally:**
@@ -188,7 +188,7 @@ python run.py import -s csv -p data/input.csv -o analysis.db
 ### Start an Analysis Session
 
 ```bash
-python run.py analyse --db-path data.db
+python run.py analyse --db-path analysis.db
 ```
 
 You will enter an interactive REPL:
@@ -211,12 +211,16 @@ analyse> help
 Output:
 
 ```text
-filter <COLUMN> <OP> <VALUE>
-summary
-trend <DATE_FIELD> <METRIC_FIELD> [AGG]
-export_summary <PATH>
-export_trend <PATH>
-exit
+Available commands:
+  filter [--from YYYY-MM-DD] [--to YYYY-MM-DD] COLUMN OP VALUE [COLUMN OP VALUE ...]
+  summary
+  trend DATE VALUE  [agg=mean]
+                    [from=YYYY-MM-DD]
+                    [to=YYYY-MM-DD]
+                    [where COL OP VAL ...]
+  export_summary <PATH>
+  export_trend <PATH>
+  exit
 ```
 
 ---
@@ -226,7 +230,7 @@ exit
 #### Syntax
 
 ```text
-filter <COLUMN> <OP> <VALUE>
+filter [--from YYYY-MM-DD] [--to YYYY-MM-DD] COLUMN OP VALUE [COLUMN OP VALUE ...]
 ```
 
 #### Supported Operators
@@ -239,15 +243,17 @@ filter <COLUMN> <OP> <VALUE>
 * **INTEGER / REAL fields**
 
   * `eq`, `ne`
-  * `lt`, `lte`
-  * `gt`, `gte`
+  * `lt`, `lte` (<, <=)
+  * `gt`, `gte` (>, >=)
 
 ---
 
-#### Example 3: Filter by Country
+#### Example 3: Filter by CATEGORICAL KEYWORDS
 
 ```text
-analyse> filter COUNTRY eq USA
+analyse> filter COUNTRY eq AND
+analyse> filter --from 2021-10-11 --to 2024-7-30 COUNTRY eq AND
+analyse> filter COUNTRY eq AND GROUP eq old
 ```
 
 Effect:
@@ -261,7 +267,8 @@ Effect:
 #### Example 4: Numeric Filtering
 
 ```text
-analyse> filter VALUE gt 100
+analyse> filter POPULATION gt 10000
+analyse> filter POPULATION gt 1000 POPULATION lt 10000
 ```
 
 ---
@@ -297,7 +304,10 @@ The summary is:
 #### Syntax
 
 ```text
-trend <DATE_FIELD> <METRIC_FIELD> [AGG]
+  trend DATE VALUE  [agg=mean]
+                    [from=YYYY-MM-DD]
+                    [to=YYYY-MM-DD]
+                    [where COL OP VAL ...]
 ```
 
 * `AGG` is optional (default: `count`)
@@ -312,21 +322,24 @@ trend <DATE_FIELD> <METRIC_FIELD> [AGG]
 #### Example 5: Count Trend Over Time
 
 ```text
-analyse> trend DATE VALUE
+analyse> trend DATE COVID_VACCINE_ADM_1D
 ```
 
 Equivalent to:
 
 ```text
-analyse> trend DATE VALUE count
+analyse> trend DATE COVID_VACCINE_ADM_1D agg=count
 ```
 
 ---
 
-#### Example 6: Mean Trend Over Time
+#### Example 6: Other Command
 
 ```text
-analyse> trend DATE VALUE mean
+analyse> trend DATE POPULATION agg=mean
+analyse> trend DATE COVID_VACCINE_ADM_1D from=2023-01-01 to=2024-10-30
+analyse> trend DATE COVID_VACCINE_ADM_1D where GROUP eq hcw
+analyse> trend DATE COVID_VACCINE_ADM_1D where POPULATION lt 100000
 ```
 
 Effect:
@@ -341,7 +354,7 @@ Effect:
 ### 3.5 `export_summary` — Export Summary as CSV
 
 ```text
-analyse> export_summary output/summary.csv
+analyse> export_summary results/summary.csv
 ```
 
 Notes:
@@ -354,7 +367,7 @@ Notes:
 ### 3.6 `export_trend` — Export Trend Figure
 
 ```text
-analyse> export_trend output/trend.png
+analyse> export_trend results/trend.png
 ```
 
 Notes:
@@ -375,16 +388,16 @@ analyse> exit
 ## 4. Complete Example Workflow
 
 ```text
-$ python run.py analyse -o data.db
+$ python run.py analyse -o analysis.db
 
-analyse> filter COUNTRY eq USA
+analyse> filter COUNTRY eq AND
 # summary preview displayed
 
-analyse> trend DATE VALUE mean
+analyse> trend DATE POPULATION agg=mean
 # trend figure preview displayed
 
-analyse> export_summary results/usa_summary.csv
-analyse> export_trend results/usa_trend.png
+analyse> export_summary results/and_summary.csv
+analyse> export_trend results/population_trend.png
 
 analyse> exit
 ```
