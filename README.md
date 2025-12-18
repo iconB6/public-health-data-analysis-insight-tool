@@ -15,7 +15,7 @@ Designed with layered architecture, clear separation of concerns, and full unit/
 
 * Load data from CSV (extensible to JSON / API / DB)
 * Clean and validate raw data
-* Store into SQLite (extensible to cloud databases)
+* Store into SQLite or cloud databases
 * Transaction-safe import pipeline
 
 ### Data Analysis
@@ -41,7 +41,7 @@ Designed with layered architecture, clear separation of concerns, and full unit/
 
 * Layered architecture (Application / Service / Infrastructure)
 * Repository & Factory patterns
-* Fully testable (FakeRepository + SQLite)
+* Fully testable (FakeRepository + SQLite + cloud)
 * Centralised logging
 
 ---
@@ -72,6 +72,7 @@ Designed with layered architecture, clear separation of concerns, and full unit/
 ┌─────────────────────┐
 │ Infrastructure      │
 │  - SQLiteRepository │
+│  - CloudRepository  │
 │  - CSVLoader        │
 └─────────────────────┘
 ```
@@ -97,8 +98,10 @@ src/
 │
 ├── infrastructure/
 │   ├── sqlite_repository.py
-│   ├── data_loader_factory.py
-│   └── csv_loader.py
+│   ├── cloud_repository.py
+│   └── loaders/
+│       ├── data_loader_factory.py
+│       └── csv_loader.py
 │
 ├── interface/
 │   ├── repository_interface.py
@@ -163,6 +166,8 @@ python run.py import \
   --source csv \
   --path data/COV_VAC_UPTAKE_2024.csv \
   --db-path analysis.db
+
+python run.py import -s csv -p data/COV_VAC_UPTAKE_2024.csv -o analysis.db # Using Short Options
 ```
 
 **What happens internally:**
@@ -175,12 +180,26 @@ python run.py import \
 
 ---
 
-### Example 2: Using Short Options
+### Example 2: Import CSV into Cloud Database (Postgres)
+
+Warning: you should a Postgres DB on localhost first.
+
+Start a local Postgres with Docker Compose (project includes `docker-compose.yml`):
 
 ```bash
-python run.py import -s csv -p data/input.csv -o analysis.db
+docker-compose up -d
 ```
+then you can:
 
+```bash
+python run.py import \
+  --source csv \
+  --path data/COV_VAC_UPTAKE_2024.csv \
+  --dbtype cloud \
+  --db-path "postgresql://test:pass@localhost:5432/testdb"
+
+python run.py import -s csv -p data/COV_VAC_UPTAKE_2024.csv -d cloud -o postgresql://test:pass@localhost:5432/testdb # Using Short Options
+```
 ---
 
 ## 2. Analyse Command (Interactive Session)
@@ -189,6 +208,8 @@ python run.py import -s csv -p data/input.csv -o analysis.db
 
 ```bash
 python run.py analyse --db-path analysis.db
+
+python run.py analyse -d cloud -o "postgresql://test:pass@localhost:5432/testdb" # cloud option
 ```
 
 You will enter an interactive REPL:
@@ -402,6 +423,27 @@ analyse> export_trend results/population_trend.png
 analyse> exit
 ```
 
+when using cloud database(on docker):
+
+```text
+$ docker-compose up -d
+$ python run.py import -s csv -p data/COV_VAC_UPTAKE_2024.csv -d cloud -o postgresql://test:pass@localhost:5432/testdb
+$ python run.py analyse -d cloud -o "postgresql://test:pass@localhost:5432/testdb"
+
+analyse> filter COUNTRY eq AND
+# summary preview displayed
+
+analyse> trend DATE POPULATION agg=mean
+# trend figure preview displayed
+
+analyse> export_summary results/and_summary.csv
+analyse> export_trend results/population_trend.png
+
+analyse> exit
+
+$ docker-compose down
+```
+
 ---
 
 ## 5. CLI Design Notes
@@ -439,7 +481,7 @@ Your CLI architecture is already very close to a real-world data analysis tool.
 ### Integration Tests
 
 * Full import → analyse → export flows
-* Real SQLiteRepository
+* Real SQLiteRepository/CloudRepository
 * CLI-driven behaviour
 
 Run all tests:
@@ -447,7 +489,8 @@ Run all tests:
 ```bash
 pytest
 ```
-
+Note: Make sure you are maintaining a connection with the cloud database; 
+      otherwise, test_cloud_repository.py will fail.
 ---
 
 ## 🪵 Logging
@@ -473,8 +516,6 @@ pytest
 ---
 
 ## 🔮 Future Extensions
-
-* Cloud database repositories (PostgreSQL / BigQuery)
 * REST API / Frontend dashboard
 * Streaming data sources
 * Advanced analytics (forecasting, anomaly detection)
