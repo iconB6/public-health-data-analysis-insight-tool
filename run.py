@@ -27,7 +27,8 @@ def parse_args():
     # analyse command (interactive)
     analyse_parser = subparsers.add_parser("analyse", help="Start analysis session")
     analyse_parser.add_argument("--dbtype", "-d", default="sqlite")
-    analyse_parser.add_argument("--db-path", "-o", required=True)
+    analyse_parser.add_argument("--db-path", "-o", required=True,
+                                help="Path to SQLite DB file or cloud DB URL when using -d cloud")
 
     return parser.parse_args()
 
@@ -38,6 +39,13 @@ def handle_import(args):
     logger.info("Starting import pipeline")
     if args.dbtype == "sqlite":
         repository = SQLiteRepository(args.db_path)
+    elif args.dbtype == "cloud":
+        # when using cloud, existing --db-path is treated as the cloud URL
+        cloud_url = args.db_path or os.getenv("CLOUD_DB_URL")
+        if not cloud_url:
+            raise ValueError("Cloud DB selected but no URL provided via --db-path or CLOUD_DB_URL")
+        from src.infrastructure.cloud_repository import CloudRepository
+        repository = CloudRepository(cloud_url)
     else:
         raise ValueError(f"Unsupported db type: {args.dbtype}")
     
@@ -62,6 +70,14 @@ def handle_analyse(args):
                 f"Please run the import command first."
             )
         repository = SQLiteRepository(args.db_path)
+    elif args.dbtype == "cloud":
+        cloud_url = args.db_path or os.getenv("CLOUD_DB_URL")
+        if not cloud_url:
+            raise FileNotFoundError(
+                "Cloud DB selected but no CLOUD_DB_URL set and --db-path not provided."
+            )
+        from src.infrastructure.cloud_repository import CloudRepository
+        repository = CloudRepository(cloud_url)
     else:
         raise ValueError(f"Unsupported db type: {args.dbtype}")
     
