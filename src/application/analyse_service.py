@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Any
+from src.interface.repository_interface import IRepository
 from src.utils.logger import get_logger
 from src.service.filter_service import FilterService
 from src.service.summary_service import SummaryService
@@ -6,7 +7,7 @@ from src.service.trend_service import TrendService
 
 class AnalyseService:
 
-    def __init__(self, repository, visualizer):
+    def __init__(self, repository: IRepository, visualizer):
         self.logger = get_logger(self.__class__.__name__)
 
         self.repository = repository

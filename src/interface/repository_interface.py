@@ -32,6 +32,12 @@ class IRepository(ABC):
         """
 
     @abstractmethod
+    def get_schema(self, table: str) -> Dict[str, str]:
+        """
+        Return schema mapping for a table: {column: TYPE}
+        """
+
+    @abstractmethod
     def insert_rows(
         self,
         table: str,
@@ -52,6 +58,7 @@ class IRepository(ABC):
     ) -> List[Dict[str, Any]]:
         pass
 
+    @abstractmethod
     def query_for_trend(
         self,
         *,
@@ -60,5 +67,10 @@ class IRepository(ABC):
         date_to: Optional[date] = None,
         conditions: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
+        """
+        Fetch rows filtered by an arbitrary date field for trend computations.
+        Implementations should return a list of dict rows where `date_field` values
+        are either `datetime.date` or ISO date strings depending on implementation.
+        """
         pass
 

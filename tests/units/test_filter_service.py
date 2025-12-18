@@ -30,6 +30,17 @@ class FakeRepository(IRepository):
         }
         return self.rows
 
+    def query_for_trend(
+        self,
+        *,
+        date_field: str,
+        date_from=None,
+        date_to=None,
+        conditions=None,
+    ):
+        # For filter tests, trend queries can just reuse query behavior
+        return self.query(date_from=date_from, date_to=date_to, conditions=conditions)
+
     # unused methods (empty implementations)
     def connect(self): pass
     def disconnect(self): pass

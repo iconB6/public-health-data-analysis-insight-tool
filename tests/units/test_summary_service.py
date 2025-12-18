@@ -1,4 +1,6 @@
 import pytest
+from typing import Any, Dict, Optional
+from datetime import date
 from src.service.summary_service import SummaryService
 
 """
@@ -59,6 +61,17 @@ class FakeRepository:
 
     def get_schema(self, table_name="records"):
         return SCHEMA
+    
+    def query_for_trend(
+        self,
+        *,
+        date_field: str,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        conditions: Optional[Dict[str, Dict[str, Any]]] = None,
+    ):
+        # Summary tests don't exercise trend behavior; return full rows
+        return self._rows
 
 
 @pytest.fixture

@@ -2,11 +2,11 @@ import datetime
 from collections import defaultdict
 from typing import Any, Dict, Optional
 from src.utils.logger import get_logger
-
+from src.interface.repository_interface import IRepository
 
 class TrendService:
 
-    def __init__(self, repository):
+    def __init__(self, repository: IRepository):
         self._repo = repository
         self.logger = get_logger(self.__class__.__name__)
 
