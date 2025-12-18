@@ -426,6 +426,7 @@ analyse> exit
 when using cloud database(on docker):
 
 ```text
+$ pip install -r requirements.txt
 $ docker-compose up -d
 $ python run.py import -s csv -p data/COV_VAC_UPTAKE_2024.csv -d cloud -o postgresql://test:pass@localhost:5432/testdb
 $ python run.py analyse -d cloud -o "postgresql://test:pass@localhost:5432/testdb"
