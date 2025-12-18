@@ -446,28 +446,6 @@ $ docker-compose down
 
 ---
 
-## 5. CLI Design Notes
-
-* Import and analysis responsibilities are strictly separated
-* Import is a stateless, one-shot operation
-* Analysis is a stateful interactive session
-* Summary and trend support:
-
-  * preview first
-  * export on demand
-* CLI only coordinates commands; all logic lives in service layers
-
----
-
-If you want, I can also help you:
-
-* Write a **concise academic-style README**
-* Add **end-to-end CLI test cases**
-* Prepare a **design justification section** for coursework submission
-
-Your CLI architecture is already very close to a real-world data analysis tool.
-
-
 ---
 
 ## 🧪 Testing
